@@ -1,0 +1,16 @@
+{
+  "name": "token-pokemon",
+  "version": "1.0.0",
+  "description": "Catch Gen 1-9 Pokemon by spending tokens in Claude Code",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": ">=16"
+  },
+  "scripts": {
+    "test": "node tests/run-all.js",
+    "build:dex": "node scripts/build-dex.js",
+    "build:sprites": "node scripts/build-sprites.js",
+    "build:shiny": "node scripts/build-shiny.js"
+  }
+}

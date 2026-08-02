@@ -1,0 +1,19 @@
+{
+  "name": "token-pokemon",
+  "description": "Catch Gen 1-9 Pokemon by spending tokens. Every turn rolls for a catch, with odds scaled to the tokens that turn used.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Amir Mamoon",
+    "url": "https://github.com/MohamedAmirMamoon"
+  },
+  "homepage": "https://github.com/MohamedAmirMamoon/claude-pokemon",
+  "repository": "https://github.com/MohamedAmirMamoon/claude-pokemon",
+  "license": "MIT",
+  "keywords": [
+    "pokemon",
+    "gacha",
+    "fun",
+    "tokens",
+    "gamification"
+  ]
+}

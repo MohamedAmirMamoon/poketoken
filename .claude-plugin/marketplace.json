@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "claude-pokemon",
+  "description": "Token-powered Pokemon catching for Claude Code",
+  "owner": {
+    "name": "Amir Mamoon",
+    "url": "https://github.com/MohamedAmirMamoon"
+  },
+  "plugins": [
+    {
+      "name": "token-pokemon",
+      "source": "./plugins/token-pokemon",
+      "version": "1.0.0",
+      "description": "Catch Gen 1-9 Pokemon by spending tokens"
+    }
+  ]
+}
