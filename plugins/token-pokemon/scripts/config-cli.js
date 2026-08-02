@@ -554,7 +554,29 @@ function cmdShow() {
   say();
 
   say(`  Config file  ${CONFIG_PATH()}${state.info.existed ? '' : '  (not created yet)'}`);
-  say('  Change it    /pokeconfig set <key> <value>   /pokeconfig preset <name>');
+  say();
+
+  // The bare `/pokeconfig` is where most people land, so it has to answer "what
+  // can I change?" rather than only "what is it now". Both lists are derived from
+  // FIELDS and PRESETS so they cannot drift out of sync with what actually works.
+  say('  PRESETS                       /pokeconfig preset <name>');
+  for (const name of Object.keys(PRESETS)) {
+    say(`    ${name.padEnd(26)}${PRESETS[name].blurb}`);
+  }
+  say();
+
+  say('  OR SET ONE KEY                /pokeconfig set <key> <value>');
+  for (const key of SHOW_ORDER) {
+    say(`    ${key.padEnd(26)}${FIELDS[key].help}`);
+  }
+  say();
+
+  say('  ALSO');
+  say('    rate 1%/1000              friendlier way to set the catch rate');
+  say('    gens 1-3,7-9              limit the pool to certain generations');
+  say('    simulate 8000 20000       try your settings before committing');
+  say('    reset [key]               undo one key, or the whole file');
+  say('    help                      the full reference');
 }
 
 function cmdSet(argv) {

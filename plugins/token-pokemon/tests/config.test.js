@@ -430,6 +430,28 @@ test('unknown command exits non-zero after printing help', () => {
   assert.ok(/unknown command/.test(out), out);
 });
 
+// --- discoverability -------------------------------------------------------
+
+console.log('\nbare show lists the options');
+
+test('a bare invocation offers every preset and every settable key', () => {
+  sandbox();
+  // Someone typing `/pokeconfig` with no arguments is asking "what can I do?",
+  // so the no-arg screen has to name the options, not just the current values.
+  const out = ok(cli(), 'bare');
+  for (const name of ['default', 'hardcore', 'casual', 'kanto', 'classic',
+    'modern', 'no-legendaries', 'shiny-hunt', 'no-shinies']) {
+    assert.ok(out.indexOf(name) !== -1, `preset "${name}" is not offered`);
+  }
+  for (const key of ['enabled', 'ratePerToken', 'maxChance', 'gens', 'showMisses',
+    'sprites', 'spriteWidth', 'shinyChance', 'tierWeights.mythical']) {
+    assert.ok(out.indexOf(key) !== -1, `key "${key}" is not offered`);
+  }
+  for (const verb of ['rate', 'gens', 'simulate', 'reset', 'help']) {
+    assert.ok(new RegExp('\\n\\s+' + verb + '\\b').test(out), `verb "${verb}" is not offered`);
+  }
+});
+
 // --- shinies ---------------------------------------------------------------
 
 console.log('\nshinyChance');
