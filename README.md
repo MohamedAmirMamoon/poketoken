@@ -33,7 +33,7 @@ half of the event:
 ## Install
 
 ```
-/plugin marketplace add MohamedAmirMamoon/claude-pokemon
+/plugin marketplace add MohamedAmirMamoon/poketoken
 /plugin install token-pokemon@claude-pokemon
 ```
 
