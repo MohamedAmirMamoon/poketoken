@@ -36,6 +36,16 @@ const DEFAULTS = {
   sprites: true,
   // Terminal columns the sprite is downsampled to fit.
   spriteWidth: 48,
+  // How sprite art is drawn:
+  //   "plain" - block glyphs only, no escape codes, and the default. Slash
+  //             command output is captured as a plain string with the ESC bytes
+  //             stripped, which renders colour art as literal `[38;2;...m` noise;
+  //             this mode trades colour for a shape that survives that capture.
+  //             Quadrant glyphs resolve the silhouette at half-cell precision, so
+  //             the loss is the colour rather than the detail.
+  //   "color" - truecolour half-block art. Sharper in a terminal that shows it,
+  //             but unreadable anywhere the escapes are stripped.
+  spriteMode: 'plain',
   // Chance a catch is the alternate-colour (shiny) variant. The games use
   // 1/4096, which at these catch rates would be a once-a-decade event; 1/128
   // keeps it a genuine surprise you might actually live to see.
@@ -44,6 +54,7 @@ const DEFAULTS = {
 
 const MIN_SPRITE_WIDTH = 8;
 const MAX_SPRITE_WIDTH = 64;
+const SPRITE_MODES = ['color', 'plain'];
 
 function isPlainObject(v) {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -56,6 +67,17 @@ function positiveNumber(v, fallback) {
 function clampedInt(v, min, max, fallback) {
   if (typeof v !== 'number' || !isFinite(v)) return fallback;
   return Math.min(max, Math.max(min, Math.round(v)));
+}
+
+/**
+ * Normalizes the sprite rendering mode, case-insensitively. Anything
+ * unrecognised falls back to the default rather than disabling art: a typo in
+ * one cosmetic field should not cost the user their sprites.
+ */
+function spriteMode(v) {
+  if (typeof v !== 'string') return DEFAULTS.spriteMode;
+  const mode = v.trim().toLowerCase();
+  return SPRITE_MODES.includes(mode) ? mode : DEFAULTS.spriteMode;
 }
 
 /**
@@ -104,9 +126,13 @@ function loadConfig() {
     // A rate, so 0 is meaningful here: it turns shinies off entirely.
     shinyChance: Math.min(1, positiveNumber(raw.shinyChance, DEFAULTS.shinyChance)),
     spriteWidth: clampedInt(raw.spriteWidth, MIN_SPRITE_WIDTH, MAX_SPRITE_WIDTH, DEFAULTS.spriteWidth),
+    // An unrecognised mode falls back to colour rather than drawing nothing.
+    spriteMode: spriteMode(raw.spriteMode),
     // Generations to draw from. null means "no filter" -- see lib/gens.js.
     gens: genList(raw.gens),
   };
 }
 
-module.exports = { loadConfig, DEFAULTS, claudeDir, dataDir, COLLECTION_PATH, CONFIG_PATH };
+module.exports = {
+  loadConfig, DEFAULTS, claudeDir, dataDir, COLLECTION_PATH, CONFIG_PATH, SPRITE_MODES,
+};

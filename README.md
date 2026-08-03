@@ -15,12 +15,12 @@ Generations 1 through 9. All 1,025 species, every legendary and mythical include
 +-- /pokedex to view your collection
 ```
 
-On a truecolor terminal the species' art is drawn above that banner. Set `sprites` to
-`false` if you'd rather just have the text.
+The species' art is drawn above that banner, as block glyphs that work on any terminal.
+`/pokeconfig set spriteMode color` swaps them for truecolour half-blocks if your terminal
+shows them; `sprites false` drops the art entirely.
 
-About 1 catch in 128 comes out **shiny** — the alternate colouring, drawn in its real
-recoloured art and given the headline over the tier, because at those odds it's the rarer
-half of the event:
+About 1 catch in 128 comes out **shiny** — the alternate colouring, given the headline over
+the tier because at those odds it's the rarer half of the event:
 
 ```
 +-- ** SHINY!! A shiny MACHAMP appeared and was caught!
@@ -50,10 +50,10 @@ writes to it — its own settings live in its own directory (see [Your data](#yo
   design, since the hook is forbidden from disrupting a session. Check with
   `node --version`; anything 16 or newer works, and there are no dependencies to
   install.
-- **A truecolor terminal**, for the art only. There's no capability detection: the
-  renderer emits 24-bit ANSI escapes unconditionally. If you see escape codes
-  instead of a Pokémon, run `/pokeconfig set sprites false` — everything else
-  works the same.
+- **Nothing, for the art.** It defaults to block glyphs and no escape codes, so it
+  draws on any terminal. `spriteMode color` is the truecolour version, and it has no
+  capability detection — if you turn it on and get escape codes instead of a Pokémon,
+  switch back with `/pokeconfig set spriteMode plain`.
 
 Nothing else. No network access at runtime, no API keys, no build step.
 
@@ -72,7 +72,7 @@ from the plugin directory:
 
 ```
 node hooks/pull.js --dry-run 400000         # a huge fake turn; prints a catch banner, writes nothing
-node hooks/pull.js --sprite 25              # print one species' art, to test your terminal's colour
+node hooks/pull.js --sprite 25              # print one species' art, to check how it draws
 ```
 
 `--dry-run` only prints when its roll actually wins, so at normal rates it will usually
@@ -130,6 +130,10 @@ regardless of tier.
 Because the roll happens last, it changes nothing about which species you catch.
 `/pokeconfig preset shiny-hunt` makes them 8x more common, `no-shinies` turns them off.
 
+A shiny is a recolour, and the default plain art deliberately preserves the silhouette, so
+the two look the same there — the `SHINY` mark on the banner is what tells you. Switch to
+`spriteMode color` if you want to actually see the alternate palette.
+
 ## Commands
 
 | Command | Shows |
@@ -169,6 +173,7 @@ Or write `~/.claude/token-pokemon/config.json` yourself:
   "showMisses": false,
   "sprites": true,
   "spriteWidth": 48,
+  "spriteMode": "plain",
   "shinyChance": 0.0078125,
   "enabled": true
 }
@@ -182,7 +187,8 @@ Or write `~/.claude/token-pokemon/config.json` yourself:
 | `gens` | Generations the pool draws from. Omit for all nine. |
 | `showMisses` | `true` prints a one-line report on every turn, including misses. |
 | `sprites` | `false` prints the banner without the pixel art. |
-| `spriteWidth` | Terminal columns the sprite is downsampled to, 8–64. |
+| `spriteWidth` | Terminal columns the sprite is downsampled to, 8–64. `plain` art caps at 32, above which it already holds every source pixel. |
+| `spriteMode` | `plain` (default) draws block glyphs with no escape codes, so the art survives being captured out of a slash command as text; each cell resolves four subcells, which puts the silhouette's edges on half-cell boundaries. `color` draws truecolour half-blocks — sharper in a terminal that renders them, unreadable anywhere the escapes are stripped. |
 | `shinyChance` | Chance a catch is shiny, 0–1. `0` turns shinies off; the default `0.0078125` is 1 in 128. |
 | `enabled` | `false` pauses pulling without uninstalling. |
 
@@ -216,7 +222,8 @@ are, so reinstalling picks your collection back up.
 | Symptom | Likely cause |
 |---|---|
 | Nothing ever happens | Usually just the odds — a 5,000-token turn is a 1% shot. Confirm the wiring with `node hooks/pull.js --dry-run 400000`, then check `node --version` resolves, then `TOKEN_POKEMON_DEBUG=1` for the real error |
-| Escape codes instead of art | Your terminal isn't truecolor. `/pokeconfig set sprites false` |
+| Escape codes instead of art | You're in `spriteMode color` and your terminal isn't truecolor. `/pokeconfig set spriteMode plain` |
+| Art looks blocky or coarse | `/pokeconfig set spriteWidth 32` — plain art holds every source pixel at 32 columns and shrinks below that |
 | Art is too wide, or wraps | `/pokeconfig set spriteWidth 32` |
 | `/pokedex` and `/pokeconfig` unknown | The plugin isn't installed or is disabled. Re-check with `/plugin` |
 | Catches feel too rare, or too common | `/pokeconfig simulate 8000 20000` projects your settings over 20,000 turns before you commit to them; `preset casual` and `preset hardcore` are the ready-made ends |
@@ -236,6 +243,18 @@ silently. Set `TOKEN_POKEMON_DEBUG=1` to see the stack trace when something goes
 art as `data/sprites/`, both generated once from [PokeAPI](https://pokeapi.co). Runtime is
 Node stdlib only, targeting Node 16+. A turn costs a few hundred milliseconds of hook
 time, most of it Node startup.
+
+**The art defaults to escape-free, without defaulting to coarse.** Slash command output
+reaches the model as a plain string with the ESC bytes stripped, so truecolour art arrives
+as literal `[38;2;...m` noise and `/pokedex` cannot relay it. Plain mode spends no escapes:
+the silhouette rides on the space/non-space boundary and the shading ramp `█▓▒░` carries
+depth. The obvious cost would be resolution — one glyph per cell can only say "this whole
+cell is filled, at roughly this brightness", so every edge rounds to a whole character. So
+each cell is instead sampled as a 2x2 grid and drawn with the quadrant glyph matching which
+subcells are opaque (`▘▝▀▖▌▞▛▗▚▐▜▄▙▟`), which puts edges on half-cell boundaries and
+quadruples the effective pixel count at the same column footprint. Fully-covered cells still
+draw from the ramp, so interiors keep their shading; partial cells spend their glyph on the
+edge, because a misplaced edge is a misidentified Pokémon.
 
 **Shinies cost almost nothing to ship.** A shiny is a pure recolour for 986 of the 1,025
 species, so `data/sprites/shiny/` stores a replacement palette and reuses the normal
@@ -274,7 +293,7 @@ and skipped, so pressing escape mid-answer still counts toward your roll.
 Everything runs from `plugins/token-pokemon/`:
 
 ```
-npm test                                 # 224 tests across 5 suites
+npm test                                 # 270 tests across 6 suites
 node tests/roll.test.js                  # one suite, incl. 100k-trial distribution checks
 node hooks/pull.js --dry-run 40000       # simulate a 40k-token turn
 node hooks/pull.js --sprite 25           # preview one sprite

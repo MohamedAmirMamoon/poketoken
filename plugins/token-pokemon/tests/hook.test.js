@@ -450,13 +450,29 @@ test('sprites:false yields a plain-text banner with no escapes', () => {
   assert.ok(/\/pokedex to view your collection/.test(msg), 'call to action missing');
 });
 
-test('sprites:true emits truecolour escapes above the banner', () => {
+test('spriteMode:color emits truecolour escapes above the banner', () => {
   const dir = freshDir('sprite');
-  writeConfig(dir, { ratePerToken: 1, maxChance: 1, sprites: true, spriteWidth: 32 });
+  writeConfig(dir, {
+    ratePerToken: 1, maxChance: 1, sprites: true, spriteWidth: 32, spriteMode: 'color',
+  });
   const p = transcript(dir, [{ prompt: 'hi' }, { assistant: 'ok', id: 'm1', in: 500, out: 500 }]);
   const msg = JSON.parse(run(HOOK, [], { input: payload(p), dir }).stdout).systemMessage;
   assert.ok(/\x1b\[38;2;\d+;\d+;\d+m/.test(msg), 'no truecolour foreground in the hook output');
   assert.ok(msg.indexOf('\x1b[38;2;') < msg.indexOf('+-- '), 'art is not above the text block');
+});
+
+test('sprites:true draws escape-free art by default, since plain is the default mode', () => {
+  const dir = freshDir('spritedefault');
+  writeConfig(dir, { ratePerToken: 1, maxChance: 1, sprites: true, spriteWidth: 32 });
+  const p = transcript(dir, [{ prompt: 'hi' }, { assistant: 'ok', id: 'm1', in: 500, out: 500 }]);
+  const msg = JSON.parse(run(HOOK, [], { input: payload(p), dir }).stdout).systemMessage;
+  assert.strictEqual(msg.indexOf('\x1b'), -1, 'the default banner is not escape-free');
+  // Art present and above the text, just without colour.
+  const { PLAIN_RAMP, PLAIN_QUADRANT } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
+  const drawn = new Set([...PLAIN_RAMP, ...PLAIN_QUADRANT.slice(1)]);
+  const first = msg.split('').findIndex((c) => drawn.has(c));
+  assert.ok(first >= 0, `no art glyph in the hook output: ${msg}`);
+  assert.ok(first < msg.indexOf('+-- '), 'art is not above the text block');
 });
 
 console.log('\npull.js: shinies');
@@ -506,7 +522,11 @@ test('the shiny headline outranks the legendary one', () => {
 
 test('a shiny catch renders the recoloured art, not the normal art', () => {
   const dir = freshDir('shinyart');
-  const cfg = { ratePerToken: 1, maxChance: 1, sprites: true, spriteWidth: 32, gens: [1] };
+  // Pinned to colour: a recolour is what this asserts, and the plain renderer
+  // deliberately keeps the same silhouette for both.
+  const cfg = {
+    ratePerToken: 1, maxChance: 1, sprites: true, spriteWidth: 32, gens: [1], spriteMode: 'color',
+  };
   writeConfig(dir, Object.assign({}, cfg, { shinyChance: 1 }));
   const p = transcript(dir, [{ prompt: 'hi' }, { assistant: 'ok', id: 'm1', in: 500, out: 500 }]);
   const shinyMsg = JSON.parse(run(HOOK, [], { input: payload(p), dir }).stdout).systemMessage;
@@ -731,7 +751,10 @@ test('an uncaught species still shows its card, with art and encouragement', () 
   assert.ok(/Caught\s+0 times/.test(out), `wrong count: ${out.match(/Caught.*/)}`);
   assert.ok(/Not yet caught/.test(out), 'no encouragement for an uncaught species');
   assert.ok(!/CATCH HISTORY/.test(out), 'showed a history for a species never caught');
-  assert.ok(/\x1b\[38;2;/.test(out), 'no art on the detail card');
+  // Default mode is plain, so the art is block glyphs rather than escapes.
+  const { PLAIN_RAMP, PLAIN_QUADRANT } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
+  const drawn = new Set([...PLAIN_RAMP, ...PLAIN_QUADRANT.slice(1)]);
+  assert.ok(out.split('').some((c) => drawn.has(c)), 'no art on the detail card');
 });
 
 test('the detail card honours sprites:false', () => {
@@ -790,16 +813,21 @@ test('the detail card marks the species shiny and flags the shiny catches', () =
 });
 
 test('owning a shiny makes the detail card render the shiny art', () => {
+  // Pinned to colour art: a shiny is a recolour, and the plain renderer keeps the
+  // silhouette identical by design, so only colour can tell the two apart.
   const rows = [{ id: 25, name: 'Pikachu', gen: 1, tier: 'common' }];
-  const plain = run(STATS, ['pikachu'], { dir: seed('art-plain', rows) }).stdout;
-  const shiny = run(STATS, ['pikachu'], {
-    dir: seed('art-shiny', [Object.assign({ shiny: true }, rows[0])]),
-  }).stdout;
+  const colourCfg = { spriteMode: 'color' };
+  const normalDir = seed('art-normal', rows);
+  writeConfig(normalDir, colourCfg);
+  const shinyDir = seed('art-shiny', [Object.assign({ shiny: true }, rows[0])]);
+  writeConfig(shinyDir, colourCfg);
+  const normal = run(STATS, ['pikachu'], { dir: normalDir }).stdout;
+  const shiny = run(STATS, ['pikachu'], { dir: shinyDir }).stdout;
 
   const { renderSprite } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
   const { DEFAULTS } = require(path.join(PLUGIN_ROOT, 'lib', 'config.js'));
   const opts = { maxWidth: DEFAULTS.spriteWidth };
-  assert.ok(plain.includes(renderSprite(25, opts)), 'plain card lost the normal art');
+  assert.ok(normal.includes(renderSprite(25, opts)), 'normal card lost the normal art');
   assert.ok(shiny.includes(renderSprite(25, Object.assign({ shiny: true }, opts))),
     'shiny card did not render the shiny art');
   assert.ok(!shiny.includes(renderSprite(25, opts)), 'shiny card rendered the normal art');

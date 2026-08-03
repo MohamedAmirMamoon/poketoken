@@ -18,7 +18,7 @@ const store = require(path.join(PLUGIN_ROOT, 'lib', 'store.js'));
 const { loadConfig, CONFIG_PATH, COLLECTION_PATH } = require(path.join(PLUGIN_ROOT, 'lib', 'config.js'));
 const { commas, pct, TIER_LABEL } = require(path.join(PLUGIN_ROOT, 'lib', 'render.js'));
 const dex = require(path.join(PLUGIN_ROOT, 'data', 'dex.json'));
-const { renderSprite } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
+const { renderSprite, renderSpritePlain } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
 
 const TIERS = ['common', 'rare', 'legendary', 'mythical'];
 /** Generations present in the shipped dex, ascending. Derived so it never goes stale. */
@@ -212,7 +212,11 @@ function pokemonDetail(data, pokemon) {
   // Show the shiny art to anyone who has earned it: it is the whole point of
   // the reward, and a normal recolour would bury it.
   if (config.sprites !== false) {
-    const art = renderSprite(pokemon.id, {
+    // "plain" draws escape-free art, which is the only kind that survives being
+    // captured out of this command's stdout as a string, so it takes anything but
+    // an explicit "color".
+    const draw = config.spriteMode === 'color' ? renderSprite : renderSpritePlain;
+    const art = draw(pokemon.id, {
       maxWidth: config.spriteWidth,
       shiny: shinies > 0,
     });

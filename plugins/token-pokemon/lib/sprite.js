@@ -13,6 +13,65 @@ const RESET = '\x1b[0m';
 const DEFAULT_MAX_WIDTH = 48;
 const DEFAULT_INDENT = '   ';
 
+/**
+ * Shading glyphs from darkest to lightest, for the escape-free renderer.
+ *
+ * Transparent pixels are drawn as a space rather than a ramp entry, so the
+ * silhouette is carried by the space/non-space boundary and survives even if a
+ * consumer cannot display the block glyphs themselves.
+ */
+const PLAIN_RAMP = '█▓▒░';
+
+/**
+ * Quadrant glyphs indexed by a 4-bit coverage mask over a cell's subcells:
+ * bit 0 top-left, bit 1 top-right, bit 2 bottom-left, bit 3 bottom-right.
+ *
+ * These are what make the art fine-grained. A shading glyph can only say "this
+ * whole cell is drawn, at roughly this brightness", so a cell straddling an edge
+ * had to choose between swallowing the background or dropping the foreground.
+ * Quadrants let each cell resolve four independent pieces of the silhouette, so
+ * the outline lands on half-cell boundaries instead of whole ones.
+ *
+ * Index 0 is the empty cell and index 15 the full one; the renderer substitutes a
+ * ramp glyph for 15 so interiors keep their shading.
+ */
+const PLAIN_QUADRANT = [
+  ' ', '▘', '▝', '▀',
+  '▖', '▌', '▞', '▛',
+  '▗', '▚', '▐', '▜',
+  '▄', '▙', '▟', '█',
+];
+
+/** Subcells per cell on each axis. 2x2 is what the quadrant glyphs can express. */
+const PLAIN_SUB = 2;
+
+/**
+ * Fraction of a downsampled block that must be opaque before the block is drawn
+ * at all. At one half, an averaged block joins the silhouette only when opaque
+ * pixels actually dominate it, which keeps antialiased edges from inflating the
+ * outline by a full character cell.
+ */
+const PLAIN_COVERAGE = 0.5;
+
+/**
+ * Height of a terminal cell relative to its width. A subcell is half a cell on
+ * each axis, so subcells inherit the same ratio, and the subrow count is divided
+ * by this to keep the sprite in proportion instead of coming out twice as tall as
+ * it should be.
+ */
+const PLAIN_ASPECT = 2;
+
+/**
+ * Plain art is one cell per pixel, so it needs far fewer columns than the colour
+ * renderer's half-block packing. Most sprites are well under this and are drawn
+ * at their native pixel width.
+ *
+ * Quadrants subdivide each cell 2x2, so this cap resolves 64 subcolumns -- the
+ * native width of even the largest baked sprite. Raising it would spend columns
+ * without recovering any more source detail.
+ */
+const PLAIN_MAX_WIDTH = 32;
+
 // Symbol -> palette index (0 = transparent). Built once; lib is hot in hooks.
 const SYMBOL_INDEX = new Map();
 for (let i = 0; i < ALPHABET.length; i++) SYMBOL_INDEX.set(ALPHABET[i], i);
@@ -101,6 +160,34 @@ function decodePalette(pal) {
     rgb[d + 2] = v & 0xff;
   }
   return rgb;
+}
+
+/**
+ * Perceived luminance per palette slot, on the same 0-255 scale as the channels.
+ *
+ * Rec. 709 coefficients, so the ramp follows what the eye actually reads as
+ * light and dark: a saturated green is far brighter than a blue of identical
+ * channel magnitude, and averaging the raw channels would rank them equal.
+ *
+ * Index 0 is the reserved transparent slot and is left at 0; nothing reads it,
+ * because transparent pixels never reach the ramp.
+ */
+function decodeLuminance(pal) {
+  const lum = new Float64Array(pal.length + 1);
+  for (let i = 0; i < pal.length; i++) {
+    const v = parseInt(pal[i], 16);
+    lum[i + 1] = 0.2126 * ((v >> 16) & 0xff)
+      + 0.7152 * ((v >> 8) & 0xff)
+      + 0.0722 * (v & 0xff);
+  }
+  return lum;
+}
+
+/** Ramp glyph for a 0-255 luminance: darkest colours get the densest block. */
+function rampGlyph(luminance) {
+  const t = luminance < 0 ? 0 : luminance > 255 ? 255 : luminance;
+  const slot = Math.floor((t / 256) * PLAIN_RAMP.length);
+  return PLAIN_RAMP[slot < PLAIN_RAMP.length ? slot : PLAIN_RAMP.length - 1];
 }
 
 /**
@@ -231,4 +318,166 @@ function renderSprite(id, options) {
   }
 }
 
-module.exports = { renderSprite, spritePath, shinyPath, renderSize, applyShiny, ALPHABET };
+/**
+ * Cell and subcell grid the plain renderer draws a sprite on.
+ *
+ * Cells are capped both by the caller's budget and by the source: quadrants
+ * resolve PLAIN_SUB subcolumns each, so one cell per PLAIN_SUB source pixels
+ * already samples every pixel there is, and going wider would stretch the art
+ * without recovering detail. This keeps the cell footprint the same as one glyph
+ * per pixel would have produced while quadrupling the detail inside it.
+ *
+ * Subcells are half a cell on each axis, so they carry the cell's aspect ratio:
+ * roughly twice as tall as they are wide. The subrow count is therefore the
+ * source ratio taken off the CELL width, which is the subcolumn count already
+ * divided by PLAIN_ASPECT.
+ *
+ * Exported so tests assert against the same math the renderer uses.
+ *
+ * @returns {{cols:number, rows:number, subW:number, subH:number}}
+ */
+function plainSize(srcW, srcH, requested) {
+  const cols = Math.max(1, Math.min(Math.ceil(srcW / PLAIN_SUB), requested));
+  const subW = cols * PLAIN_SUB;
+  const subH = Math.max(PLAIN_SUB, Math.round((subW * (srcH / srcW)) / PLAIN_ASPECT));
+  return { cols, subW, subH, rows: Math.max(1, Math.ceil(subH / PLAIN_SUB)) };
+}
+
+/**
+ * Renders a baked sprite as escape-free shaded text.
+ *
+ * Slash command output reaches the model as a plain string with the ESC bytes
+ * stripped, which turns the colour renderer's art into literal `[38;2;...m`
+ * noise. This mode spends no escapes at all: the shape is carried by block
+ * glyphs and the space/non-space boundary, so it survives capture even though the
+ * colour cannot.
+ *
+ * Each cell is sampled as a 2x2 grid of subcells and drawn with the quadrant
+ * glyph matching which of the four are opaque, so the silhouette resolves at
+ * twice the cell resolution on both axes -- four times the effective pixel count
+ * of one glyph per cell. Edges are what identify a sprite (ear tips, a snout, the
+ * notch in Pikachu's tail), and at these widths an edge almost never falls on a
+ * cell boundary; quadrants let it land mid-cell instead of rounding the whole
+ * cell to filled or blank.
+ *
+ * Fully-covered cells are drawn from the luminance ramp rather than as a solid
+ * block, so interiors keep their shading and the art still reads as a form rather
+ * than a stencil. Partial cells spend their glyph on the edge itself: shape wins
+ * over shade there, because a misplaced edge is a misidentified Pokemon.
+ *
+ * Subcells average luminance over their source block instead of point sampling,
+ * because a subcell stands for an area once it covers more than one pixel; it is
+ * drawn only when opaque pixels cover at least half of it.
+ *
+ * @param {number} id dex id
+ * @param {{maxWidth?:number, indent?:string, shiny?:boolean}} [options]
+ * @returns {string|null} multi-line art, free of ESC bytes, or null when unavailable
+ */
+function renderSpritePlain(id, options) {
+  try {
+    const opts = options || {};
+    let sprite = loadSprite(id);
+    if (!sprite) return null;
+    if (opts.shiny) sprite = applyShiny(id, sprite);
+
+    // spriteWidth is a column budget shared with the colour renderer, whose
+    // half-block packing spends one column per pixel. Plain art resolves two
+    // subcolumns per column, so it is capped here rather than taken at face value:
+    // a smaller setting still shrinks the art, but the wider defaults do not
+    // stretch it past the detail the source actually holds.
+    const requested = typeof opts.maxWidth === 'number' && isFinite(opts.maxWidth) && opts.maxWidth >= 1
+      ? Math.min(Math.floor(opts.maxWidth), PLAIN_MAX_WIDTH)
+      : PLAIN_MAX_WIDTH;
+    const indent = typeof opts.indent === 'string' ? opts.indent : DEFAULT_INDENT;
+
+    const srcW = sprite.w;
+    const srcH = sprite.h;
+    const px = sprite.px;
+    const lum = decodeLuminance(sprite.pal);
+    const maxIndex = sprite.pal.length;
+
+    const { cols, rows, subW, subH } = plainSize(srcW, srcH, requested);
+
+    /**
+     * Coverage and mean luminance of one subcell's source block. Coverage is the
+     * opaque fraction, so the caller can threshold the silhouette; luminance is
+     * averaged over the opaque pixels only, so a mostly-clear block is not dragged
+     * dark by the transparency around its content.
+     */
+    const sample = (sy, sx) => {
+      const y0 = Math.floor((sy * srcH) / subH);
+      const y1 = Math.max(y0 + 1, Math.floor(((sy + 1) * srcH) / subH));
+      const x0 = Math.floor((sx * srcW) / subW);
+      const x1 = Math.max(x0 + 1, Math.floor(((sx + 1) * srcW) / subW));
+      let sum = 0;
+      let opaque = 0;
+      let total = 0;
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          total++;
+          const index = SYMBOL_INDEX.get(px[y * srcW + x]);
+          // An out-of-range symbol is treated as transparent, exactly as the
+          // colour renderer does, so corrupt data degrades to a hole.
+          if (index === undefined || index === 0 || index > maxIndex) continue;
+          sum += lum[index];
+          opaque++;
+        }
+      }
+      return { covered: opaque / total >= PLAIN_COVERAGE, lum: opaque ? sum / opaque : 0 };
+    };
+
+    const lines = [];
+    for (let row = 0; row < rows; row++) {
+      let line = indent;
+      for (let col = 0; col < cols; col++) {
+        // Quadrant bit order: 1 top-left, 2 top-right, 4 bottom-left, 8 bottom-right.
+        let mask = 0;
+        let sum = 0;
+        let drawn = 0;
+        for (let sy = 0; sy < PLAIN_SUB; sy++) {
+          const y = row * PLAIN_SUB + sy;
+          // An odd subrow count leaves the last cell's bottom half off the grid;
+          // treat it as clear rather than sampling past the sprite.
+          if (y >= subH) break;
+          for (let sx = 0; sx < PLAIN_SUB; sx++) {
+            const cell = sample(y, col * PLAIN_SUB + sx);
+            if (!cell.covered) continue;
+            mask |= 1 << (sy * PLAIN_SUB + sx);
+            sum += cell.lum;
+            drawn++;
+          }
+        }
+
+        // A full cell has no edge to describe, so it spends its glyph on shading
+        // instead. Anything partial draws the quadrant, which is the edge.
+        line += mask === PLAIN_QUADRANT.length - 1
+          ? rampGlyph(sum / drawn)
+          : PLAIN_QUADRANT[mask];
+      }
+      // Trailing blanks carry no shape and would only pad every line out to the
+      // full width, so they are dropped.
+      lines.push(line.replace(/ +$/, ''));
+    }
+
+    return lines.join('\n');
+  } catch (_) {
+    // A cosmetic sprite must never break the caller.
+    return null;
+  }
+}
+
+module.exports = {
+  renderSprite,
+  renderSpritePlain,
+  spritePath,
+  shinyPath,
+  renderSize,
+  plainSize,
+  applyShiny,
+  ALPHABET,
+  PLAIN_RAMP,
+  PLAIN_QUADRANT,
+  PLAIN_SUB,
+  PLAIN_MAX_WIDTH,
+  PLAIN_ASPECT,
+};

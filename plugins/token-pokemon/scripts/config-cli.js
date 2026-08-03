@@ -29,7 +29,7 @@ const path = require('path');
 const PLUGIN_ROOT = path.join(__dirname, '..');
 
 const {
-  loadConfig, DEFAULTS, dataDir, CONFIG_PATH, COLLECTION_PATH,
+  loadConfig, DEFAULTS, dataDir, CONFIG_PATH, COLLECTION_PATH, SPRITE_MODES,
 } = require(path.join(PLUGIN_ROOT, 'lib', 'config.js'));
 const { commas, pct, TIER_LABEL } = require(path.join(PLUGIN_ROOT, 'lib', 'render.js'));
 const gensLib = require(path.join(PLUGIN_ROOT, 'lib', 'gens.js'));
@@ -151,6 +151,20 @@ const FIELDS = {
     },
     format: (v) => `${v} columns`,
   },
+  spriteMode: {
+    help: `how sprite art is drawn (${SPRITE_MODES.join('/')}) - "color" trades text that survives capture for truecolour`,
+    parse: (raw) => {
+      const mode = String(raw).trim().toLowerCase();
+      if (!SPRITE_MODES.includes(mode)) {
+        throw UserError(
+          `spriteMode must be one of ${SPRITE_MODES.join(', ')}, got ${raw}`,
+          '"plain" is escape-free block glyphs; "color" is truecolour half-block art'
+        );
+      }
+      return mode;
+    },
+    format: (v) => (v === 'plain' ? 'plain  (escape-free block glyphs)' : 'color  (truecolour half-blocks)'),
+  },
   gens: {
     help: `generations the catch pool draws from (${DEX_GENS[0]}-${DEX_GENS[DEX_GENS.length - 1]}, or "all")`,
     parse: (raw) => gensLib.parseGenSpec(String(raw), DEX_GENS),
@@ -174,7 +188,7 @@ for (const tier of TIERS) {
 
 const SHOW_ORDER = ['enabled', 'ratePerToken', 'maxChance', 'gens']
   .concat(TIERS.map((t) => `tierWeights.${t}`))
-  .concat(['showMisses', 'sprites', 'spriteWidth', 'shinyChance']);
+  .concat(['showMisses', 'sprites', 'spriteWidth', 'spriteMode', 'shinyChance']);
 
 // ---------------------------------------------------------------------------
 // raw file access
@@ -453,6 +467,7 @@ const PRESETS = {
       enabled: DEFAULTS.enabled,
       sprites: DEFAULTS.sprites,
       spriteWidth: DEFAULTS.spriteWidth,
+      spriteMode: DEFAULTS.spriteMode,
       shinyChance: DEFAULTS.shinyChance,
       gens: GENS_DEFAULT.slice(),
       'tierWeights.common': DEFAULTS.tierWeights.common,
