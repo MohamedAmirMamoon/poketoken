@@ -198,7 +198,7 @@ console.log('\nstats.js integration');
 function pokedex(collection, arg) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tp-rule-'));
   try {
-    const dataDir = path.join(dir, 'token-pokemon');
+    const dataDir = path.join(dir, 'poke-token');
     fs.mkdirSync(dataDir, { recursive: true });
     if (collection) {
       fs.writeFileSync(path.join(dataDir, 'collection.json'), JSON.stringify(collection));
@@ -226,7 +226,7 @@ function headerRule(out) {
   const lines = out.split('\n');
   // The detail card puts the sprite above the title, so find the title itself
   // rather than assuming it is the first line.
-  const at = lines.findIndex((l) => /^(#\d|POKEDEX|TOKEN-POKEMON)/.test(l));
+  const at = lines.findIndex((l) => /^(#\d|POKEDEX|POKE-TOKEN)/.test(l));
   assert.ok(at >= 0, `no title line in report:\n${out}`);
   return lines[at + 1];
 }

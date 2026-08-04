@@ -46,16 +46,16 @@ function test(name, fn) {
 /** A fresh isolated config dir. */
 function freshDir(label) {
   const dir = fs.mkdtempSync(path.join(ROOT, `${label}-`));
-  fs.mkdirSync(path.join(dir, 'token-pokemon'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'poke-token'), { recursive: true });
   return dir;
 }
 
 function writeConfig(dir, config) {
-  fs.writeFileSync(path.join(dir, 'token-pokemon', 'config.json'), JSON.stringify(config, null, 2));
+  fs.writeFileSync(path.join(dir, 'poke-token', 'config.json'), JSON.stringify(config, null, 2));
 }
 
 function readCollection(dir) {
-  const p = path.join(dir, 'token-pokemon', 'collection.json');
+  const p = path.join(dir, 'poke-token', 'collection.json');
   if (!fs.existsSync(p)) return null;
   return JSON.parse(fs.readFileSync(p, 'utf8'));
 }
@@ -166,7 +166,7 @@ test('a corrupt transcript exits 0 without output', () => {
 test('a corrupt collection file does not stop a catch being recorded', () => {
   const dir = freshDir('corrupt-collection');
   writeConfig(dir, ALWAYS);
-  fs.writeFileSync(path.join(dir, 'token-pokemon', 'collection.json'), 'not valid json at all');
+  fs.writeFileSync(path.join(dir, 'poke-token', 'collection.json'), 'not valid json at all');
   const p = transcript(dir, [{ prompt: 'hi' }, { assistant: 'ok', id: 'm1', in: 10, out: 90 }]);
   const r = run(HOOK, [], { input: payload(p), dir });
   assert.strictEqual(r.status, 0, `exit ${r.status}: ${r.stderr}`);
@@ -179,7 +179,7 @@ test('an unwritable data dir still exits 0', () => {
   const dir = freshDir('readonly');
   writeConfig(dir, ALWAYS);
   const p = transcript(dir, [{ prompt: 'hi' }, { assistant: 'ok', id: 'm1', in: 10, out: 90 }]);
-  const dataDir = path.join(dir, 'token-pokemon');
+  const dataDir = path.join(dir, 'poke-token');
   fs.chmodSync(dataDir, 0o500); // r-x: cannot create the temp file or lock
   try {
     const r = run(HOOK, [], { input: payload(p), dir });
@@ -189,16 +189,16 @@ test('an unwritable data dir still exits 0', () => {
   }
 });
 
-test('TOKEN_POKEMON_DEBUG surfaces errors but still exits 0', () => {
+test('POKE_TOKEN_DEBUG surfaces errors but still exits 0', () => {
   const dir = freshDir('debug');
   writeConfig(dir, ALWAYS);
   const p = transcript(dir, [{ prompt: 'hi' }, { assistant: 'ok', id: 'm1', in: 10, out: 90 }]);
-  const dataDir = path.join(dir, 'token-pokemon');
+  const dataDir = path.join(dir, 'poke-token');
   fs.chmodSync(dataDir, 0o500);
   try {
-    const r = run(HOOK, [], { input: payload(p), dir, env: { TOKEN_POKEMON_DEBUG: '1' } });
+    const r = run(HOOK, [], { input: payload(p), dir, env: { POKE_TOKEN_DEBUG: '1' } });
     assert.strictEqual(r.status, 0, 'debug mode changed the exit code');
-    assert.ok(/token-pokemon:/.test(r.stderr), `no diagnostic on stderr: ${JSON.stringify(r.stderr)}`);
+    assert.ok(/poke-token:/.test(r.stderr), `no diagnostic on stderr: ${JSON.stringify(r.stderr)}`);
   } finally {
     fs.chmodSync(dataDir, 0o700);
   }
@@ -607,7 +607,7 @@ test('every view runs cleanly on a populated collection', () => {
     tokens: 5000, chance: 0.01, roll: 0.005,
     caughtAt: `2026-01-0${i + 1}T12:30:00.000Z`, sessionId: 's', cwd: '/tmp',
   }, c));
-  fs.writeFileSync(path.join(dir, 'token-pokemon', 'collection.json'),
+  fs.writeFileSync(path.join(dir, 'poke-token', 'collection.json'),
     JSON.stringify({ version: 1, catches, stats: { turns: 500, tokens: 2500000, pulls: catches.length } }));
 
   const views = ['', 'odds', 'stats', 'missing', 'common', 'rare', 'legendary', 'mythical',
@@ -628,7 +628,7 @@ test('the summary counts unique species, not raw catches', () => {
     id, name: `M${id}`, gen: 1, tier: 'common', tokens: 100, chance: 1, roll: 0,
     caughtAt: `2026-01-0${i + 1}T00:00:00.000Z`, sessionId: 's', cwd: '/tmp',
   }));
-  fs.writeFileSync(path.join(dir, 'token-pokemon', 'collection.json'),
+  fs.writeFileSync(path.join(dir, 'poke-token', 'collection.json'),
     JSON.stringify({ version: 1, catches, stats: { turns: 10, tokens: 400, pulls: 4 } }));
   const r = run(STATS, [], { dir });
   assert.ok(/Caught 4 total - 2 unique species/.test(r.stdout),
@@ -643,7 +643,7 @@ test('4-digit and 3-digit dex ids stay column-aligned', () => {
   ].map((c, i) => Object.assign({
     tokens: 100, chance: 1, roll: 0, caughtAt: `2026-01-0${i + 1}T00:00:00.000Z`, sessionId: 's', cwd: '/tmp',
   }, c));
-  fs.writeFileSync(path.join(dir, 'token-pokemon', 'collection.json'),
+  fs.writeFileSync(path.join(dir, 'poke-token', 'collection.json'),
     JSON.stringify({ version: 1, catches, stats: { turns: 2, tokens: 200, pulls: 2 } }));
   const r = run(STATS, [], { dir });
   const rows = r.stdout.split('\n').filter((l) => /#\d/.test(l));
@@ -682,7 +682,7 @@ test('odds reports the configured rate, and survives a rate of 1', () => {
 
 test('a corrupt collection yields a message, not a stack trace', () => {
   const dir = freshDir('stats-corrupt');
-  fs.writeFileSync(path.join(dir, 'token-pokemon', 'collection.json'), 'totally not json');
+  fs.writeFileSync(path.join(dir, 'poke-token', 'collection.json'), 'totally not json');
   const r = run(STATS, [], { dir });
   assert.strictEqual(r.status, 0, `exit ${r.status}`);
   assert.ok(!/at Object\.|at Module\./.test(r.stdout + r.stderr), 'leaked a stack trace');
@@ -698,7 +698,7 @@ function seed(label, catches, stats) {
     tokens: 5000, chance: 0.01, roll: 0.005,
     caughtAt: `2026-01-0${(i % 9) + 1}T12:30:00.000Z`, sessionId: 's', cwd: '/tmp',
   }, c));
-  fs.writeFileSync(path.join(dir, 'token-pokemon', 'collection.json'), JSON.stringify({
+  fs.writeFileSync(path.join(dir, 'poke-token', 'collection.json'), JSON.stringify({
     version: 1,
     catches: rows,
     stats: stats || { turns: 500, tokens: 2500000, pulls: rows.length },

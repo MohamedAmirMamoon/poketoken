@@ -699,7 +699,7 @@ const { spawnSync } = require('child_process');
 function pokedex(spriteMode, arg) {
   const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'tp-plain-stats-'));
   try {
-    const dataDirPath = path.join(dir, 'token-pokemon');
+    const dataDirPath = path.join(dir, 'poke-token');
     fs.mkdirSync(dataDirPath, { recursive: true });
     fs.writeFileSync(path.join(dataDirPath, 'config.json'),
       JSON.stringify(spriteMode === undefined ? {} : { spriteMode }));

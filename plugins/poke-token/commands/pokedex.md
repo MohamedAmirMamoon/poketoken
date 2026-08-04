@@ -1,5 +1,5 @@
 ---
-description: View your token-pokemon collection
+description: View your poke-token collection
 argument-hint: "[<name> | #<id> | gen1-9 | legendary | mythical | rare | common | missing | odds]"
 allowed-tools: Bash(node:*)
 ---

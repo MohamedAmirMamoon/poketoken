@@ -4,7 +4,7 @@
  * `node tests/config.test.js`. Exits non-zero on the first failure.
  *
  * Every case runs against a throwaway CLAUDE_CONFIG_DIR under os.tmpdir(), so
- * the real ~/.claude/token-pokemon/config.json is never read or written.
+ * the real ~/.claude/poke-token/config.json is never read or written.
  */
 
 'use strict';
@@ -39,7 +39,7 @@ function test(name, fn) {
 
 // --- sandbox harness --------------------------------------------------------
 
-const SANDBOX_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'token-pokemon-test-'));
+const SANDBOX_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'poke-token-test-'));
 
 // Registered here, next to the mkdtemp, rather than at the end of the file: a
 // failing test() calls process.exit(1), so anything registered further down is
@@ -56,12 +56,12 @@ let SANDBOX = null;
 /** Fresh, empty CLAUDE_CONFIG_DIR for the next case. */
 function sandbox() {
   SANDBOX = path.join(SANDBOX_ROOT, `case-${++sandboxSeq}`);
-  fs.mkdirSync(path.join(SANDBOX, 'token-pokemon'), { recursive: true });
+  fs.mkdirSync(path.join(SANDBOX, 'poke-token'), { recursive: true });
   return SANDBOX;
 }
 
 function configFile() {
-  return path.join(SANDBOX, 'token-pokemon', 'config.json');
+  return path.join(SANDBOX, 'poke-token', 'config.json');
 }
 
 function writeConfigText(text) {
@@ -254,7 +254,7 @@ console.log('\nCLI subcommands (happy path)');
 test('show works with no config file and reports defaults', () => {
   sandbox();
   const out = ok(cli('show'), 'show');
-  assert.ok(/TOKEN-POKEMON CONFIG/.test(out));
+  assert.ok(/POKE-TOKEN CONFIG/.test(out));
   assert.ok(/1% chance costs\s+5,000 tokens/.test(out), 'derived 1% cost missing');
   assert.ok(/5,000 token turn.*1\.00%/.test(out), '5k turn chance missing');
   assert.ok(/500 token turn.*0\.10%/.test(out), '500 turn chance missing');
@@ -267,7 +267,7 @@ test('show works with no config file and reports defaults', () => {
 test('no-arg invocation is the same as show', () => {
   sandbox();
   const bare = ok(cli(), 'bare');
-  assert.ok(/TOKEN-POKEMON CONFIG/.test(bare));
+  assert.ok(/POKE-TOKEN CONFIG/.test(bare));
   assert.ok(/SETTINGS/.test(bare));
 });
 
@@ -383,8 +383,8 @@ test('reset with no key removes the whole file', () => {
 test('path prints the config and collection locations', () => {
   sandbox();
   const out = ok(cli('path'), 'path');
-  assert.ok(out.indexOf(path.join(SANDBOX, 'token-pokemon', 'config.json')) !== -1, out);
-  assert.ok(out.indexOf(path.join(SANDBOX, 'token-pokemon', 'collection.json')) !== -1, out);
+  assert.ok(out.indexOf(path.join(SANDBOX, 'poke-token', 'config.json')) !== -1, out);
+  assert.ok(out.indexOf(path.join(SANDBOX, 'poke-token', 'collection.json')) !== -1, out);
 });
 
 test('help lists commands, keys and presets', () => {
@@ -663,7 +663,7 @@ test('a JSON array config is treated as malformed', () => {
 test('no temp files are left behind', () => {
   sandbox();
   ok(cli('set', 'maxChance', '50%'), 'set');
-  const leftovers = fs.readdirSync(path.join(SANDBOX, 'token-pokemon'))
+  const leftovers = fs.readdirSync(path.join(SANDBOX, 'poke-token'))
     .filter((f) => f.indexOf('.tmp') !== -1);
   assert.deepStrictEqual(leftovers, []);
 });
@@ -672,7 +672,7 @@ test('the real user config dir is never touched', () => {
   sandbox();
   // A sandbox path is in force for every cli() call; assert it really is.
   const out = ok(cli('path'), 'path');
-  assert.ok(out.indexOf(os.homedir() + '/.claude/token-pokemon') === -1,
+  assert.ok(out.indexOf(os.homedir() + '/.claude/poke-token') === -1,
     'CLI resolved the real home config despite CLAUDE_CONFIG_DIR');
 });
 

@@ -1,5 +1,5 @@
 ---
-description: View and tune your token-pokemon settings
+description: View and tune your poke-token settings
 argument-hint: "[set <key> <value> | rate <spec> | gens <spec> | preset <name> | reset [key] | simulate [tokens] [turns] | path | help]"
 allowed-tools: Bash(node:*), AskUserQuestion
 ---

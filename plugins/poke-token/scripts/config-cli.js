@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Reads and writes ~/.claude/token-pokemon/config.json for the /pokeconfig
+ * Reads and writes ~/.claude/poke-token/config.json for the /pokeconfig
  * slash command.
  *
  *   node scripts/config-cli.js                        show effective config
@@ -529,7 +529,7 @@ function cmdShow() {
   const config = state.config;
   const raw = state.info.raw;
 
-  say('TOKEN-POKEMON CONFIG');
+  say('POKE-TOKEN CONFIG');
   say(rule());
   say();
   noteBackup(state.info);
@@ -622,7 +622,7 @@ function cmdSet(argv) {
   setPath(raw, key, parsed);
   writeRaw(raw);
 
-  say('TOKEN-POKEMON CONFIG - SET');
+  say('POKE-TOKEN CONFIG - SET');
   say(rule());
   say();
   noteBackup(state.info);
@@ -646,7 +646,7 @@ function cmdRate(argv) {
   raw.ratePerToken = parsed.rate;
   writeRaw(raw);
 
-  say('TOKEN-POKEMON CONFIG - RATE');
+  say('POKE-TOKEN CONFIG - RATE');
   say(rule());
   say();
   noteBackup(state.info);
@@ -695,7 +695,7 @@ function cmdGens(argv) {
   const pool = gensLib.activePool(dex.pokemon, { gens: chosen });
   const byGen = gensLib.countByGen(pool);
 
-  say('TOKEN-POKEMON CONFIG - GENERATIONS');
+  say('POKE-TOKEN CONFIG - GENERATIONS');
   say(rule());
   say();
   noteBackup(state.info);
@@ -720,7 +720,7 @@ function cmdGens(argv) {
 function cmdPreset(argv) {
   const name = String(argv[0] || '').toLowerCase();
   if (!name || !Object.prototype.hasOwnProperty.call(PRESETS, name)) {
-    say('TOKEN-POKEMON CONFIG - PRESETS');
+    say('POKE-TOKEN CONFIG - PRESETS');
     say(rule());
     say();
     for (const k of Object.keys(PRESETS)) say(`  ${k.padEnd(16)} ${PRESETS[k].blurb}`);
@@ -751,7 +751,7 @@ function cmdPreset(argv) {
   }
   writeRaw(raw);
 
-  say(`TOKEN-POKEMON CONFIG - PRESET ${name.toUpperCase()}`);
+  say(`POKE-TOKEN CONFIG - PRESET ${name.toUpperCase()}`);
   say(rule());
   say();
   noteBackup(state.info);
@@ -774,7 +774,7 @@ function cmdReset(argv) {
   const key = argv[0];
   const state = effective();
 
-  say('TOKEN-POKEMON CONFIG - RESET');
+  say('POKE-TOKEN CONFIG - RESET');
   say(rule());
   say();
   noteBackup(state.info);
@@ -811,7 +811,7 @@ function cmdReset(argv) {
 
 function cmdPath() {
   const state = effective();
-  say('TOKEN-POKEMON PATHS');
+  say('POKE-TOKEN PATHS');
   say(rule());
   say();
   noteBackup(state.info);
@@ -861,7 +861,7 @@ function cmdSimulate(argv) {
   const observedRate = catches / turnsArg;
   const shares = tierShares(config.tierWeights);
 
-  say('TOKEN-POKEMON CONFIG - SIMULATE');
+  say('POKE-TOKEN CONFIG - SIMULATE');
   say(rule());
   say();
   noteBackup(state.info);
@@ -913,7 +913,7 @@ function cmdSimulate(argv) {
 }
 
 function cmdHelp() {
-  say('TOKEN-POKEMON CONFIG - HELP');
+  say('POKE-TOKEN CONFIG - HELP');
   say(rule());
   say();
   say('  COMMANDS');

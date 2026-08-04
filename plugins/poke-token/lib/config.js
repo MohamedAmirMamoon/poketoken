@@ -9,8 +9,25 @@ function claudeDir() {
   return process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
 }
 
+/**
+ * The plugin was called `token-pokemon` before, and its data directory was named
+ * after it. A rename that just moved to the new name would orphan every existing
+ * collection.json -- the catches would still be on disk, but /pokedex would report
+ * an empty dex, which is indistinguishable from having lost them.
+ *
+ * So the old directory is adopted when it is there and the new one is not. This is
+ * a read, not a migration: nothing is moved, copied or deleted, so there is no
+ * window in which a collection exists in neither place. A fresh install has no old
+ * directory and takes the new name; an upgrade keeps writing where it already was.
+ */
+const LEGACY_DIR_NAME = 'token-pokemon';
+
 function dataDir() {
-  return path.join(claudeDir(), 'token-pokemon');
+  const root = claudeDir();
+  const current = path.join(root, 'poke-token');
+  if (fs.existsSync(current)) return current;
+  const legacy = path.join(root, LEGACY_DIR_NAME);
+  return fs.existsSync(legacy) ? legacy : current;
 }
 
 const COLLECTION_PATH = () => path.join(dataDir(), 'collection.json');
@@ -94,7 +111,7 @@ function genList(v) {
 }
 
 /**
- * Reads ~/.claude/token-pokemon/config.json, falling back to DEFAULTS for any
+ * Reads ~/.claude/poke-token/config.json, falling back to DEFAULTS for any
  * missing or malformed field. Never throws: a broken config must not break a turn.
  */
 function loadConfig() {

@@ -166,7 +166,7 @@ function renderCatch({ pokemon, tier, tokens, chance, roll, uniqueCount, totalCo
 
 /** Optional one-liner for misses, when showMisses is enabled. */
 function renderMiss({ tokens, chance, roll }) {
-  return `[token-pokemon] ${commas(tokens)} tokens -> ${pct(chance)} chance, rolled ${pct(roll)} - no catch.`;
+  return `[poke-token] ${commas(tokens)} tokens -> ${pct(chance)} chance, rolled ${pct(roll)} - no catch.`;
 }
 
 module.exports = {

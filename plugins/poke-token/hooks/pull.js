@@ -170,8 +170,8 @@ main().then(
   () => process.exit(0),
   (err) => {
     // Surface the reason only when explicitly debugging; otherwise stay silent.
-    if (process.env.TOKEN_POKEMON_DEBUG) {
-      process.stderr.write(`token-pokemon: ${err && err.stack ? err.stack : err}\n`);
+    if (process.env.POKE_TOKEN_DEBUG) {
+      process.stderr.write(`poke-token: ${err && err.stack ? err.stack : err}\n`);
     }
     process.exit(0);
   }
