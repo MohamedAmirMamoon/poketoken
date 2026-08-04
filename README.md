@@ -7,28 +7,38 @@ a real shot at something good.
 
 Generations 1 through 9. All 1,025 species, every legendary and mythical included.
 
-```
-+-- *** A LEGENDARY encounter! RAYQUAZA was caught!
-|   #384 - Gen 3 - LEGENDARY - NEW
-|   41,203 tokens -> 8.24% chance -> rolled 2.11%
-|   Pokedex: 24 caught - 19/1025 unique (1.9%)
-+-- /pokedex to view your collection
-```
+<p align="center">
+  <img src="docs/showcase/catch-legendary.svg" alt="A LEGENDARY encounter: Rayquaza, drawn in colour above its catch banner" width="440">
+</p>
 
-The species' art is drawn above that banner, as block glyphs that work on any terminal.
-`/pokeconfig set spriteMode color` swaps them for truecolour half-blocks if your terminal
-shows them; `sprites false` drops the art entirely.
+The species' art is drawn above that banner. In a truecolour terminal
+(`/pokeconfig set spriteMode color`) it looks like the above; the shipped default draws the
+same shape in block glyphs that survive any terminal, and `sprites false` drops the art
+entirely.
 
 About 1 catch in 128 comes out **shiny** — the alternate colouring, given the headline over
 the tier because at those odds it's the rarer half of the event:
 
-```
-+-- ** SHINY!! A shiny MACHAMP appeared and was caught!
-|   #068 - Gen 1 - Rare - SHINY - NEW
-|   38,410 tokens -> 7.68% chance -> rolled 1.02%
-|   Pokedex: 25 caught - 20/1025 unique (2.0%)
-+-- /pokedex to view your collection
-```
+<p align="center">
+  <img src="docs/showcase/catch-shiny.svg" alt="A shiny Machamp catch banner, drawn in its alternate green colouring" width="440">
+</p>
+
+A shiny is a recolour of the same pixels — here the ordinary steel-grey Machamp beside the
+shiny green one, identical down to the last pixel but the palette:
+
+<p align="center">
+  <img src="docs/showcase/shiny-compare.svg" alt="Machamp in its ordinary grey colours beside the shiny green version" width="620">
+</p>
+
+> The images above are SVGs generated from the exact same baked sprite data the plugin
+> renders from (`node scripts/build-showcase.js`), so they can't drift from what you'll
+> actually catch. In your terminal it's live text, not an image.
+
+There are 1,025 of them waiting, across every generation:
+
+<p align="center">
+  <img src="docs/showcase/species-wall.svg" alt="A wall of Pokémon sprites spanning all nine generations, drawn in colour" width="880">
+</p>
 
 ## Install
 
@@ -150,22 +160,9 @@ Every card is headed by a rule that encodes its rarity, so you can read what you
 looking at before you reach the `Rarity` line. Commons and rares are stone; legendaries
 and mythicals are sky:
 
-```
-#0019 RATTATA
----------------------..........---------------------
-
-#0006 CHARIZARD
------------.....oooooOOOOOOOOOOooooo.....-----------
-
-#0384 RAYQUAZA
-=======++++++*******xxxxxxxxxxxx*******++++++=======
-
-#0151 MEW
-======+++++*****XXXXX##########XXXXX*****+++++======
-
-#0025 PIKACHU  * SHINY *
-======+++++*****XXXXX@@@@@@@@@@XXXXX*****+++++======
-```
+<p align="center">
+  <img src="docs/showcase/rarity-rules.svg" alt="The header rule for each rarity tier, from a plain common line up to a starry mythical and shiny one" width="440">
+</p>
 
 A shiny takes the loud rule whatever its tier, for the same reason it takes the banner
 headline. The `/pokedex` summary wears the rarest thing in your collection, so the header
@@ -326,23 +323,27 @@ and skipped, so pressing escape mid-answer still counts toward your roll.
 Everything runs from `plugins/token-pokemon/`:
 
 ```
-npm test                                 # 292 tests across 7 suites
+npm test                                 # 304 tests across 8 suites
 node tests/roll.test.js                  # one suite, incl. 100k-trial distribution checks
 node hooks/pull.js --dry-run 40000       # simulate a 40k-token turn
 node hooks/pull.js --sprite 25           # preview one sprite
 npm run build:dex                        # regenerate data/dex.json from PokeAPI
 npm run build:sprites                    # regenerate data/sprites/ from PokeAPI artwork
 npm run build:shiny                      # regenerate data/sprites/shiny/ (needs sprites first)
+npm run build:showcase                   # regenerate docs/showcase/*.svg (README art)
+node scripts/build-showcase.js --check   # fail if any showcase SVG is out of date
 ```
 
 There are no dev dependencies, so `npm` is a convenience rather than a requirement —
 every script above is just `node <path>`, and `node tests/run-all.js` is the whole suite.
 
 No test framework either: `tests/run-all.js` runs each suite in its own
-process and each suite is a plain Node script you can run directly. The three build scripts
-are the only things that touch the network, and they are only needed to regenerate the
-shipped data files. `build:shiny` derives its palettes against the already-baked normal
-sprites, so run it after `build:sprites`; both are deterministic and safe to re-run.
+process and each suite is a plain Node script you can run directly. Only the first three
+build scripts touch the network, and only to regenerate the shipped data files.
+`build:shiny` derives its palettes against the already-baked normal sprites, so run it
+after `build:sprites`; both are deterministic and safe to re-run. `build:showcase` reads no
+network at all — it draws the README's SVGs straight from the baked payloads, so `--check`
+catches a diff that forgot to regenerate them.
 
 The tests write only to `os.tmpdir()`, via `CLAUDE_CONFIG_DIR` — running the suite never
 reads or touches your real collection.
@@ -362,6 +363,7 @@ plugins/token-pokemon/
   lib/                               config, store, roll, render, sprite, transcript, gens
   data/                              dex.json, sprites/, sprites/shiny/
   tests/                             one suite per concern; run-all.js runs them all
+docs/showcase/                       generated SVGs the README embeds
 ```
 
 ## License

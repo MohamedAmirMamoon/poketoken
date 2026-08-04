@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="446" height="400" viewBox="0 0 446 400" role="img" aria-labelledby="t">
+<title id="t">Rarity header rules by tier</title>
+<rect width="446" height="400" rx="8" fill="#12141a"/>
+<rect x="0.5" y="0.5" width="445" height="399" rx="8" fill="none" stroke="#2b303b"/>
+<text x="20" y="33" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#c8ccd4" font-weight="bold">#0019 RATTATA</text>
+<text x="20" y="53" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#9aa3b0">---------------------..........---------------------</text>
+<text x="20" y="73" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#7f8794">  Rarity       Common</text>
+<text x="20" y="105" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#c8ccd4" font-weight="bold">#0006 CHARIZARD</text>
+<text x="20" y="125" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#5aa9e6">-----------.....oooooOOOOOOOOOOooooo.....-----------</text>
+<text x="20" y="145" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#7f8794">  Rarity       Rare</text>
+<text x="20" y="177" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#c8ccd4" font-weight="bold">#0384 RAYQUAZA</text>
+<text x="20" y="197" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#e0a13c">=======++++++*******xxxxxxxxxxxx*******++++++=======</text>
+<text x="20" y="217" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#7f8794">  Rarity       LEGENDARY</text>
+<text x="20" y="249" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#c8ccd4" font-weight="bold">#0151 MEW</text>
+<text x="20" y="269" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#d472d4">======+++++*****XXXXX##########XXXXX*****+++++======</text>
+<text x="20" y="289" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#7f8794">  Rarity       MYTHICAL</text>
+<text x="20" y="321" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#c8ccd4" font-weight="bold">#0025 PIKACHU  * SHINY *</text>
+<text x="20" y="341" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#f5d76e">======+++++*****XXXXX@@@@@@@@@@XXXXX*****+++++======</text>
+<text x="20" y="361" xml:space="preserve" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" fill="#7f8794">  Rarity       Common  SHINY</text>
+</svg>
