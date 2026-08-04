@@ -1,7 +1,7 @@
 # poke-token
 
 Catch Pokémon by working. Every time Claude Code finishes a turn, this plugin rolls for a
-wild encounter — and the odds scale with how many tokens that turn burned. A one-line
+wild encounter and the odds scale with how many tokens that turn burned. A one-line
 answer is almost certainly nothing. A long refactor across a dozen files is a real shot at
 something good.
 
@@ -11,14 +11,14 @@ All 1,025 species, Generations 1 through 9, every legendary and mythical include
   <img src="docs/showcase/catch-legendary.svg" alt="A LEGENDARY encounter: Rayquaza, drawn in colour above its catch banner" width="440">
 </p>
 
-About 1 catch in 128 comes out **shiny** — the alternate colouring, which takes the
+About 1 catch in 128 comes out **shiny** : the alternate colouring, which takes the
 headline over the tier because at those odds it's the rarer half of the event:
 
 <p align="center">
   <img src="docs/showcase/catch-shiny.svg" alt="A shiny Machamp catch banner, drawn in its alternate green colouring" width="440">
 </p>
 
-A shiny is a recolour of the same pixels — the ordinary steel-grey Machamp beside the shiny
+A shiny is a recolour of the same pixels : the ordinary steel-grey Machamp beside the shiny
 green one, identical down to the last pixel but the palette:
 
 <p align="center">
@@ -49,7 +49,7 @@ glyphs that draw on any terminal.
 ## How the odds work
 
 Each turn, the plugin sums the tokens billed for that turn and turns the total into a catch
-chance — 1% per 5,000 tokens, capped at 75%. Cache *reads* are excluded, since they balloon
+chance : 1% per 5,000 tokens, capped at 75%. Cache *reads* are excluded, since they balloon
 to six figures in a long conversation and would make every turn a guaranteed catch.
 
 | Turn size | Chance |
@@ -59,8 +59,8 @@ to six figures in a long conversation and would make every turn a guaranteed cat
 | 40,000 tokens (heavy session) | 8% |
 | 375,000+ tokens | 75% (capped) |
 
-Win the roll and a second roll picks the tier — Common 78%, Rare 19%, Legendary 2.7%,
-Mythical 0.3% — then a species uniformly within it. So a mythical is roughly 1 in 333
+Win the roll and a second roll picks the tier : Common 78%, Rare 19%, Legendary 2.7%,
+Mythical 0.3% : then a species uniformly within it. So a mythical is roughly 1 in 333
 catches, and catches themselves are uncommon. Arceus is meant to be a story, not a Tuesday.
 
 Misses are silent. Shinies are a last independent roll, 1 in 128 on any species at any
