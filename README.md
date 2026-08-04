@@ -146,6 +146,31 @@ the two look the same there — the `SHINY` mark on the banner is what tells you
 | `/pokedex missing` | What you still need, grouped by generation |
 | `/pokedex odds` | Your configured rates and lifetime tokens-per-catch (`stats` does the same) |
 
+Every card is headed by a rule that encodes its rarity, so you can read what you're
+looking at before you reach the `Rarity` line. Commons and rares are stone; legendaries
+and mythicals are sky:
+
+```
+#0019 RATTATA
+---------------------..........---------------------
+
+#0006 CHARIZARD
+-----------.....oooooOOOOOOOOOOooooo.....-----------
+
+#0384 RAYQUAZA
+=======++++++*******xxxxxxxxxxxx*******++++++=======
+
+#0151 MEW
+======+++++*****XXXXX##########XXXXX*****+++++======
+
+#0025 PIKACHU  * SHINY *
+======+++++*****XXXXX@@@@@@@@@@XXXXX*****+++++======
+```
+
+A shiny takes the loud rule whatever its tier, for the same reason it takes the banner
+headline. The `/pokedex` summary wears the rarest thing in your collection, so the header
+changes as you climb.
+
 ## Tuning
 
 Optional, and easiest through `/pokeconfig` — it validates what you give it, writes only
@@ -256,6 +281,14 @@ quadruples the effective pixel count at the same column footprint. Fully-covered
 draw from the ramp, so interiors keep their shading; partial cells spend their glyph on the
 edge, because a misplaced edge is a misidentified Pokémon.
 
+**The header rule carries the rarity.** A flat row of `=` was the same line on a Rattata as
+on Arceus, spending a full row of a small report on nothing. It now draws from a per-tier
+glyph ramp as a burst that is brightest in the middle, so rarity shows up twice over: in the
+vocabulary (stone for commons and rares, stars for legendaries and mythicals) and in how far
+the bright band reaches. It stays plain ASCII and exactly 52 columns, because the rule shares
+captured stdout with the sprite art and a header that degraded to mojibake would cost more
+than the decoration is worth.
+
 **Shinies cost almost nothing to ship.** A shiny is a pure recolour for 986 of the 1,025
 species, so `data/sprites/shiny/` stores a replacement palette and reuses the normal
 pixels verbatim — 396 bytes each instead of a duplicate sprite, about 11x smaller than
@@ -293,7 +326,7 @@ and skipped, so pressing escape mid-answer still counts toward your roll.
 Everything runs from `plugins/token-pokemon/`:
 
 ```
-npm test                                 # 270 tests across 6 suites
+npm test                                 # 292 tests across 7 suites
 node tests/roll.test.js                  # one suite, incl. 100k-trial distribution checks
 node hooks/pull.js --dry-run 40000       # simulate a 40k-token turn
 node hooks/pull.js --sprite 25           # preview one sprite

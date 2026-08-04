@@ -16,7 +16,7 @@ const PLUGIN_ROOT = path.join(__dirname, '..');
 
 const store = require(path.join(PLUGIN_ROOT, 'lib', 'store.js'));
 const { loadConfig, CONFIG_PATH, COLLECTION_PATH } = require(path.join(PLUGIN_ROOT, 'lib', 'config.js'));
-const { commas, pct, TIER_LABEL } = require(path.join(PLUGIN_ROOT, 'lib', 'render.js'));
+const { commas, pct, rule, TIER_LABEL } = require(path.join(PLUGIN_ROOT, 'lib', 'render.js'));
 const dex = require(path.join(PLUGIN_ROOT, 'data', 'dex.json'));
 const { renderSprite, renderSpritePlain } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
 
@@ -60,7 +60,10 @@ function summary(data, config) {
   const uniqueIds = new Set(catches.map((c) => c.id));
 
   say(`POKEDEX  (Gen ${GENS[0]}-${GENS[GENS.length - 1]}, ${commas(dex.count)} species)`);
-  say('='.repeat(52));
+  // The summary has no one species to describe, so it wears the rarest thing in
+  // the collection: the header doubles as a trophy, and it changes as you climb.
+  const best = TIERS.filter((t) => catches.some((c) => c.tier === t)).pop();
+  say(rule(best, undefined, catches.some((c) => c.shiny)));
 
   if (catches.length === 0) {
     say();
@@ -142,7 +145,8 @@ function filtered(data, { gen, tier }) {
 
   const label = gen ? `GENERATION ${gen}` : TIER_LABEL[tier].toUpperCase();
   say(`POKEDEX - ${label}`);
-  say('='.repeat(52));
+  // A tier filter has a rarity to advertise; a generation filter spans all four.
+  say(rule(tier));
   say();
   const frac = pool.length > 0 ? owned.size / pool.length : 0;
   say(`  ${owned.size}/${pool.length} unique  ${bar(frac)} ${pct(frac, 1)}`);
@@ -166,7 +170,7 @@ function filtered(data, { gen, tier }) {
 function missing(data) {
   const owned = new Set(data.catches.map((c) => c.id));
   say('POKEDEX - STILL MISSING');
-  say('='.repeat(52));
+  say(rule());
   for (const g of GENS) {
     const gaps = dex.pokemon.filter((p) => p.gen === g && !owned.has(p.id));
     say();
@@ -181,7 +185,7 @@ function missing(data) {
 function odds(data, config) {
   const s = data.stats;
   say('POKEDEX - ODDS');
-  say('='.repeat(52));
+  say(rule());
   say();
   say(`  Rate         ${(config.ratePerToken * 100).toFixed(6)}% per token`
     + `  (1% per ${tokensPerPercent(config)} tokens)`);
@@ -227,7 +231,7 @@ function pokemonDetail(data, pokemon) {
   }
 
   say(`${dexId(pokemon.id)} ${pokemon.name.toUpperCase()}${shinies > 0 ? '  * SHINY *' : ''}`);
-  say('='.repeat(52));
+  say(rule(pokemon.tier, undefined, shinies > 0));
   say();
   say(`  Generation   ${pokemon.gen}`);
   say(`  Rarity       ${TIER_LABEL[pokemon.tier]}`);

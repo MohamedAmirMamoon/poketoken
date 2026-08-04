@@ -31,7 +31,9 @@ const PLUGIN_ROOT = path.join(__dirname, '..');
 const {
   loadConfig, DEFAULTS, dataDir, CONFIG_PATH, COLLECTION_PATH, SPRITE_MODES,
 } = require(path.join(PLUGIN_ROOT, 'lib', 'config.js'));
-const { commas, pct, TIER_LABEL } = require(path.join(PLUGIN_ROOT, 'lib', 'render.js'));
+// Config screens describe settings rather than one species, so every header here
+// takes the rarity-free rule; `rule()` is used anyway to keep the width in one place.
+const { commas, pct, rule, TIER_LABEL } = require(path.join(PLUGIN_ROOT, 'lib', 'render.js'));
 const gensLib = require(path.join(PLUGIN_ROOT, 'lib', 'gens.js'));
 const dex = require(path.join(PLUGIN_ROOT, 'data', 'dex.json'));
 
@@ -528,7 +530,7 @@ function cmdShow() {
   const raw = state.info.raw;
 
   say('TOKEN-POKEMON CONFIG');
-  say('='.repeat(52));
+  say(rule());
   say();
   noteBackup(state.info);
 
@@ -621,7 +623,7 @@ function cmdSet(argv) {
   writeRaw(raw);
 
   say('TOKEN-POKEMON CONFIG - SET');
-  say('='.repeat(52));
+  say(rule());
   say();
   noteBackup(state.info);
   say(`  ${key}`);
@@ -645,7 +647,7 @@ function cmdRate(argv) {
   writeRaw(raw);
 
   say('TOKEN-POKEMON CONFIG - RATE');
-  say('='.repeat(52));
+  say(rule());
   say();
   noteBackup(state.info);
   say(`  was  1% per ${tokensPerPercent(before)} tokens  (${(before * 100).toFixed(6)}% per token)`);
@@ -694,7 +696,7 @@ function cmdGens(argv) {
   const byGen = gensLib.countByGen(pool);
 
   say('TOKEN-POKEMON CONFIG - GENERATIONS');
-  say('='.repeat(52));
+  say(rule());
   say();
   noteBackup(state.info);
   say(`  was  ${gensLib.formatGenSpec(state.config.gens, DEX_GENS)}`);
@@ -719,7 +721,7 @@ function cmdPreset(argv) {
   const name = String(argv[0] || '').toLowerCase();
   if (!name || !Object.prototype.hasOwnProperty.call(PRESETS, name)) {
     say('TOKEN-POKEMON CONFIG - PRESETS');
-    say('='.repeat(52));
+    say(rule());
     say();
     for (const k of Object.keys(PRESETS)) say(`  ${k.padEnd(16)} ${PRESETS[k].blurb}`);
     say();
@@ -750,7 +752,7 @@ function cmdPreset(argv) {
   writeRaw(raw);
 
   say(`TOKEN-POKEMON CONFIG - PRESET ${name.toUpperCase()}`);
-  say('='.repeat(52));
+  say(rule());
   say();
   noteBackup(state.info);
   say(`  ${preset.blurb}`);
@@ -773,7 +775,7 @@ function cmdReset(argv) {
   const state = effective();
 
   say('TOKEN-POKEMON CONFIG - RESET');
-  say('='.repeat(52));
+  say(rule());
   say();
   noteBackup(state.info);
 
@@ -810,7 +812,7 @@ function cmdReset(argv) {
 function cmdPath() {
   const state = effective();
   say('TOKEN-POKEMON PATHS');
-  say('='.repeat(52));
+  say(rule());
   say();
   noteBackup(state.info);
   say(`  Config      ${CONFIG_PATH()}${state.info.existed ? '' : '  (not created yet)'}`);
@@ -860,7 +862,7 @@ function cmdSimulate(argv) {
   const shares = tierShares(config.tierWeights);
 
   say('TOKEN-POKEMON CONFIG - SIMULATE');
-  say('='.repeat(52));
+  say(rule());
   say();
   noteBackup(state.info);
   say(`  ${commas(turnsArg)} turns of ${commas(tokensArg)} tokens `
@@ -912,7 +914,7 @@ function cmdSimulate(argv) {
 
 function cmdHelp() {
   say('TOKEN-POKEMON CONFIG - HELP');
-  say('='.repeat(52));
+  say(rule());
   say();
   say('  COMMANDS');
   say('    show                        current settings and what they mean');
