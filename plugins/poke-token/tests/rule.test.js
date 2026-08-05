@@ -274,17 +274,24 @@ test('a tier filter is headed by that tier rule, a gen filter by the flat one', 
   assert.strictEqual(headerRule(pokedex(null, 'gen1')), rule());
 });
 
-test('every report is still escape-free with the rules in place', () => {
-  // The rule shares the captured stdout with the art, so it is held to the same
-  // standard the plain sprite mode is.
+test('every report but a caught-species detail is escape-free with the rules in place', () => {
+  // The rule shares the captured stdout with the art. A caught species now draws
+  // its reward art in colour, so those reports carry escapes by design; every
+  // other report -- summaries, filters, and not-yet-caught species -- stays
+  // escape-free, held to the same standard the plain sprite mode is.
   const collection = {
     stats: { turns: 9, tokens: 90000, pulls: 2 },
     catches: [caught(25, 'Pikachu', 'common', true), caught(384, 'Rayquaza', 'legendary')],
   };
-  for (const arg of [undefined, 'pikachu', 'mew', 'legendary', 'gen1', 'missing', 'odds']) {
+  // `mew` is not in the collection, so its detail view falls back to plain art.
+  for (const arg of [undefined, 'mew', 'legendary', 'gen1', 'missing', 'odds']) {
     const out = pokedex(collection, arg);
     assert.strictEqual(out.indexOf('\x1b'), -1, `${arg}: report leaked an ESC byte`);
   }
+  // A caught species draws its art in colour, so escapes here are expected.
+  const caughtDetail = pokedex(collection, 'pikachu');
+  assert.ok(/\x1b\[38;2;\d+;\d+;\d+m/.test(caughtDetail),
+    'a caught species detail lost its colour art');
 });
 
 test('every report line stays within the rule width, so nothing wraps', () => {

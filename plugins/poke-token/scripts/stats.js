@@ -216,10 +216,10 @@ function pokemonDetail(data, pokemon) {
   // Show the shiny art to anyone who has earned it: it is the whole point of
   // the reward, and a normal recolour would bury it.
   if (config.sprites !== false) {
-    // "plain" draws escape-free art, which is the only kind that survives being
-    // captured out of this command's stdout as a string, so it takes anything but
-    // an explicit "color".
-    const draw = config.spriteMode === 'color' ? renderSprite : renderSpritePlain;
+    // A caught species is shown in colour at fine resolution, the same reward the
+    // catch banner gives; a not-yet-caught placeholder falls back to the escape-free
+    // plain art (unless an explicit "color" mode opts into colour throughout).
+    const draw = (count > 0 || config.spriteMode === 'color') ? renderSprite : renderSpritePlain;
     const art = draw(pokemon.id, {
       maxWidth: config.spriteWidth,
       shiny: shinies > 0,

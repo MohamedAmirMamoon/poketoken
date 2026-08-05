@@ -461,18 +461,15 @@ test('spriteMode:color emits truecolour escapes above the banner', () => {
   assert.ok(msg.indexOf('\x1b[38;2;') < msg.indexOf('+-- '), 'art is not above the text block');
 });
 
-test('sprites:true draws escape-free art by default, since plain is the default mode', () => {
+test('sprites:true draws colour art by default, since the catch banner always colours', () => {
   const dir = freshDir('spritedefault');
   writeConfig(dir, { ratePerToken: 1, maxChance: 1, sprites: true, spriteWidth: 32 });
   const p = transcript(dir, [{ prompt: 'hi' }, { assistant: 'ok', id: 'm1', in: 500, out: 500 }]);
   const msg = JSON.parse(run(HOOK, [], { input: payload(p), dir }).stdout).systemMessage;
-  assert.strictEqual(msg.indexOf('\x1b'), -1, 'the default banner is not escape-free');
-  // Art present and above the text, just without colour.
-  const { PLAIN_RAMP, PLAIN_QUADRANT } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
-  const drawn = new Set([...PLAIN_RAMP, ...PLAIN_QUADRANT.slice(1)]);
-  const first = msg.split('').findIndex((c) => drawn.has(c));
-  assert.ok(first >= 0, `no art glyph in the hook output: ${msg}`);
-  assert.ok(first < msg.indexOf('+-- '), 'art is not above the text block');
+  // A caught Pokemon's banner always renders in colour, so the default banner now
+  // carries truecolour escapes rather than plain block glyphs.
+  assert.ok(/\x1b\[38;2;\d+;\d+;\d+m/.test(msg), 'the default banner lost its colour art');
+  assert.ok(msg.indexOf('\x1b[38;2;') < msg.indexOf('+-- '), 'art is not above the text block');
 });
 
 console.log('\npull.js: shinies');
