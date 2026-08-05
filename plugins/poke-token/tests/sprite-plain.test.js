@@ -652,7 +652,7 @@ test('an unrecognised spriteMode falls back to plain rather than disabling art',
   assert.strictEqual(withConfig(undefined, () => loadConfig()).spriteMode, 'plain');
 });
 
-test('the catch banner honours plain mode and stays escape-free', () => {
+test('the catch banner always renders in colour, whatever the sprite mode', () => {
   const { renderCatch } = require(path.join(PLUGIN_ROOT, 'lib', 'render.js'));
   const args = {
     pokemon: { id: 25, name: 'Pikachu', gen: 1 },
@@ -665,23 +665,22 @@ test('the catch banner honours plain mode and stays escape-free', () => {
     dexSize: 649,
     isNew: true,
   };
+  // A freshly caught Pokemon is the celebratory reward, so its art is shown in
+  // colour at fine resolution regardless of the configured spriteMode -- an
+  // explicit "plain" no longer downgrades the banner.
   const plain = renderCatch(Object.assign({}, args, {
     config: { sprites: true, spriteWidth: 48, spriteMode: 'plain' },
   }));
-  assert.strictEqual(plain.indexOf('\x1b'), -1, 'plain catch banner leaked an escape');
+  assert.ok(/\x1b\[38;2;/.test(plain), 'plain-mode catch banner still lost its colour art');
   assert.ok(plain.indexOf('A wild PIKACHU') !== -1, 'the banner text is missing');
-  const drawn = plain.split('').filter((c) => DRAWN_SET.has(c)).length;
-  assert.ok(drawn > 100, `only ${drawn} art glyphs in the banner -- art is missing`);
 
-  // An omitted mode means the default, which is plain: a banner that reaches the
-  // model with its escapes stripped must not be the thing that carries them.
+  // An omitted mode behaves the same: the banner colours regardless.
   const fallback = renderCatch(Object.assign({}, args, {
     config: { sprites: true, spriteWidth: 48 },
   }));
-  assert.strictEqual(fallback.indexOf('\x1b'), -1, 'the default catch banner is not escape-free');
-  assert.strictEqual(fallback, plain, 'an omitted mode did not fall back to plain');
+  assert.ok(/\x1b\[38;2;/.test(fallback), 'the default catch banner lost its colour art');
 
-  // Colour is still reachable, and still colour.
+  // Explicit colour mode is, of course, still colour.
   const colour = renderCatch(Object.assign({}, args, {
     config: { sprites: true, spriteWidth: 48, spriteMode: 'color' },
   }));

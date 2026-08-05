@@ -132,13 +132,12 @@ function renderCatch({ pokemon, tier, tokens, chance, roll, uniqueCount, totalCo
   let art = null;
   if (!config || config.sprites !== false) {
     try {
-      // An explicit renderer from the caller wins; otherwise the configured mode
-      // picks one, so the mode applies to the catch banner as well as /pokedex.
-      // Only an explicit "color" opts out of plain: an absent mode means the
-      // default, and colour art is unreadable wherever the escapes are stripped.
+      // An explicit renderer from the caller wins; otherwise a just-caught
+      // Pokemon always shows in colour at fine resolution, since the catch banner
+      // is the celebratory reward and colour art earns its keep here regardless of
+      // the configured spriteMode.
       const lib = require('./sprite.js');
-      const render = sprite
-        || (config && config.spriteMode === 'color' ? lib.renderSprite : lib.renderSpritePlain);
+      const render = sprite || lib.renderSprite;
       art = render(pokemon.id, {
         maxWidth: config ? config.spriteWidth : undefined,
         shiny: !!shiny,
