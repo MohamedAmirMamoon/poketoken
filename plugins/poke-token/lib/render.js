@@ -205,19 +205,26 @@ function renderCatch({ pokemon, tier, tokens, chance, roll, uniqueCount, totalCo
     // celebratory reward and colour art earns its keep here regardless of the
     // configured spriteMode.
     const lib = require('./sprite.js');
-    const render = sprite || lib.renderSprite;
-    // The banner is emitted as a systemMessage, which truncates past ~10KB.
-    // Colour art is dense enough that a wide sprite blows that cap and arrives
-    // cut off, so hold the colour width to the safe ceiling even when the config
-    // asks for more. A caller-supplied renderer manages its own width.
-    const requested = config ? config.spriteWidth : undefined;
-    const maxWidth = sprite
-      ? requested
-      : Math.min(requested || lib.SAFE_SYSTEMMESSAGE_WIDTH, lib.SAFE_SYSTEMMESSAGE_WIDTH);
-    art = render(pokemon.id, {
-      maxWidth,
-      shiny: !!shiny,
-    }) || null;
+    // The banner is emitted as a systemMessage, which truncates past ~10KB. A
+    // caller-supplied renderer manages its own width; otherwise renderSpriteFit
+    // draws each species as wide as its own byte size allows under that cap,
+    // instead of shrinking every sprite to the one width the densest species
+    // needs. The config spriteWidth is passed as a ceiling, so a user who lowers
+    // it for a narrow terminal is still honoured -- it only ever caps, never
+    // widens past what fits.
+    let art2;
+    if (sprite) {
+      art2 = sprite(pokemon.id, {
+        maxWidth: config ? config.spriteWidth : undefined,
+        shiny: !!shiny,
+      });
+    } else {
+      art2 = lib.renderSpriteFit(pokemon.id, {
+        maxWidth: config ? config.spriteWidth : undefined,
+        shiny: !!shiny,
+      });
+    }
+    art = art2 || null;
   } catch (_) {
     // Art is decoration; a missing or broken sprite drops the picture but must
     // never cost the coloured card beneath it.

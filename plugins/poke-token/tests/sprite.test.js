@@ -13,7 +13,10 @@ const assert = require('assert');
 const PLUGIN_ROOT = path.join(__dirname, '..');
 
 const spriteLib = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
-const { renderSprite, spritePath, shinyPath, applyShiny, ALPHABET } = spriteLib;
+const {
+  renderSprite, renderSpriteFit, spritePath, shinyPath, applyShiny, ALPHABET,
+  SAFE_SYSTEMMESSAGE_WIDTH, SAFE_SYSTEMMESSAGE_BYTES, FIT_WIDTH_LADDER,
+} = spriteLib;
 const { loadConfig, DEFAULTS } = require(path.join(PLUGIN_ROOT, 'lib', 'config.js'));
 const { renderCatch } = require(path.join(PLUGIN_ROOT, 'lib', 'render.js'));
 const dex = require(path.join(PLUGIN_ROOT, 'data', 'dex.json'));
@@ -313,6 +316,96 @@ test('a corrupted sprite file returns null rather than throwing', () => {
 test('malformed options fall back to defaults instead of throwing', () => {
   for (const bad of [null, {}, { maxWidth: 'wide' }, { maxWidth: NaN }, { maxWidth: 0 }, { indent: 7 }]) {
     const art = renderSprite(25, bad);
+    assert.ok(typeof art === 'string' && art.length > 0, `options ${JSON.stringify(bad)}`);
+  }
+});
+
+console.log('\nrenderSpriteFit adaptive width');
+
+test('every species fits under the byte budget, and never truncates', () => {
+  // The whole point: no rendered banner-bound sprite may exceed the budget, for
+  // any species, in either colour. This is the guarantee that replaces the old
+  // flat width-28 cap.
+  for (const id of IDS) {
+    for (const shiny of [false, true]) {
+      const art = renderSpriteFit(id, { shiny });
+      assert.ok(art !== null, `#${id} shiny=${shiny} returned null`);
+      assert.ok(Buffer.byteLength(art) <= SAFE_SYSTEMMESSAGE_BYTES,
+        `#${id} shiny=${shiny} is ${Buffer.byteLength(art)}B, over ${SAFE_SYSTEMMESSAGE_BYTES}`);
+    }
+  }
+});
+
+test('it picks the widest ladder rung that still fits, not just the floor', () => {
+  // If fit only ever returned the floor it would be no better than the flat cap.
+  // A sparse early-gen sprite must come back wider than SAFE_SYSTEMMESSAGE_WIDTH.
+  const widths = new Set();
+  for (const id of IDS) {
+    const art = renderSpriteFit(id);
+    // Visible width of the widest line, escapes stripped, indent removed.
+    const w = Math.max(...art.split('\n').map((l) => l.replace(ANSI, '').replace(/^ +/, '').length));
+    widths.add(w);
+  }
+  const maxWidth = Math.max(...widths);
+  assert.ok(maxWidth > SAFE_SYSTEMMESSAGE_WIDTH,
+    `no sprite rendered wider than the floor ${SAFE_SYSTEMMESSAGE_WIDTH}: widest was ${maxWidth}`);
+  // And the widest rung on the ladder is actually reached by at least one species.
+  assert.ok(maxWidth >= FIT_WIDTH_LADDER[0] - 2,
+    `nothing approached the top rung ${FIT_WIDTH_LADDER[0]}: widest was ${maxWidth}`);
+});
+
+test('the chosen render equals renderSprite at the chosen width', () => {
+  // fit must return real renderSprite output, byte-for-byte -- it only chooses a
+  // width, it does not alter the drawing.
+  for (const id of SAMPLE) {
+    const art = renderSpriteFit(id);
+    const width = FIT_WIDTH_LADDER.find((w) => renderSprite(id, { maxWidth: w }) === art);
+    assert.ok(width !== undefined, `#${id}: fit output matched no ladder rung's renderSprite`);
+  }
+});
+
+test('maxWidth is a hard ceiling: rungs above it are never chosen', () => {
+  for (const id of SAMPLE) {
+    for (const ceiling of [40, 36, 32, SAFE_SYSTEMMESSAGE_WIDTH]) {
+      const art = renderSpriteFit(id, { maxWidth: ceiling });
+      const w = Math.max(...art.split('\n').map((l) => l.replace(ANSI, '').replace(/^ +/, '').length));
+      assert.ok(w <= ceiling, `#${id}: ceiling ${ceiling} produced width ${w}`);
+    }
+  }
+});
+
+test('a sub-floor maxWidth is honoured, not silently widened to the floor', () => {
+  // A narrow terminal (or a small configured spriteWidth) below every ladder rung
+  // must still shrink the art, since a small width is not a truncation concern.
+  const art = renderSpriteFit(25, { maxWidth: 16 });
+  const w = Math.max(...art.split('\n').map((l) => l.replace(ANSI, '').replace(/^ +/, '').length));
+  assert.ok(w <= 16, `sub-floor ceiling 16 produced width ${w}, widened past the request`);
+});
+
+test('a shiny fit renders the recoloured art, distinct from normal', () => {
+  const normal = renderSpriteFit(25);
+  const shiny = renderSpriteFit(25, { shiny: true });
+  assert.notStrictEqual(normal, shiny, 'shiny fit returned the normal art');
+});
+
+test('nonexistent ids return null rather than the floor', () => {
+  for (const bad of [0, -1, dex.count + 1, 99999, NaN, null, undefined, '25']) {
+    assert.strictEqual(renderSpriteFit(bad), null, `input ${JSON.stringify(bad)}`);
+  }
+});
+
+test('a tiny byte budget falls back to the narrowest render, never null', () => {
+  // Even a budget nothing can meet must return a whole (narrowest) sprite rather
+  // than dropping the art entirely -- a large picture beats no picture.
+  const art = renderSpriteFit(1, { maxBytes: 1 });
+  assert.ok(typeof art === 'string' && art.length > 0, 'a zero-ish budget dropped the art');
+  const floor = renderSprite(1, { maxWidth: SAFE_SYSTEMMESSAGE_WIDTH });
+  assert.strictEqual(art, floor, 'the last-resort render was not the ladder floor');
+});
+
+test('malformed options fall back to defaults instead of throwing', () => {
+  for (const bad of [null, {}, { maxWidth: 'wide' }, { maxWidth: NaN }, { maxBytes: 'big' }, { maxBytes: -5 }]) {
+    const art = renderSpriteFit(25, bad);
     assert.ok(typeof art === 'string' && art.length > 0, `options ${JSON.stringify(bad)}`);
   }
 });

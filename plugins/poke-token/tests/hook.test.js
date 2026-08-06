@@ -549,12 +549,12 @@ test('a shiny catch renders the recoloured art, not the normal art', () => {
   const shinyMsg = JSON.parse(run(HOOK, [], { input: payload(p), dir }).stdout).systemMessage;
   const id = readCollection(dir).catches[0].id;
 
-  const { renderSprite, SAFE_SYSTEMMESSAGE_WIDTH } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
-  // The banner holds colour art to the safe systemMessage width, so the expected
-  // art has to be drawn at that same cap even though the config asks for 32.
-  const bannerWidth = Math.min(32, SAFE_SYSTEMMESSAGE_WIDTH);
-  const normalArt = renderSprite(id, { maxWidth: bannerWidth });
-  const shinyArt = renderSprite(id, { maxWidth: bannerWidth, shiny: true });
+  const { renderSpriteFit } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
+  // The banner draws each species as wide as its byte size allows under the cap,
+  // with the config spriteWidth (32) as the ceiling -- so the expected art is the
+  // fit render at that same ceiling, not a fixed width.
+  const normalArt = renderSpriteFit(id, { maxWidth: 32 });
+  const shinyArt = renderSpriteFit(id, { maxWidth: 32, shiny: true });
   assert.ok(shinyMsg.includes(shinyArt), `#${id}: banner does not carry the shiny art`);
   assert.ok(!shinyMsg.includes(normalArt), `#${id}: banner carried the normal art instead`);
 });
@@ -844,15 +844,16 @@ test('owning a shiny makes the detail card render the shiny art', () => {
   const normal = run(STATS, ['pikachu'], { dir: normalDir }).stdout;
   const shiny = run(STATS, ['pikachu'], { dir: shinyDir }).stdout;
 
-  const { renderSprite, SAFE_SYSTEMMESSAGE_WIDTH } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
+  const { renderSpriteFit } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
   const { DEFAULTS } = require(path.join(PLUGIN_ROOT, 'lib', 'config.js'));
-  // The detail view goes out as a systemMessage, so colour art is capped to the
-  // safe width even when the default asks for more -- match that here.
-  const opts = { maxWidth: Math.min(DEFAULTS.spriteWidth, SAFE_SYSTEMMESSAGE_WIDTH) };
-  assert.ok(normal.includes(renderSprite(25, opts)), 'normal card lost the normal art');
-  assert.ok(shiny.includes(renderSprite(25, Object.assign({ shiny: true }, opts))),
+  // The detail view draws each species as wide as its byte size allows under the
+  // systemMessage cap, with the configured spriteWidth as the ceiling -- so the
+  // expected art is the fit render at that ceiling.
+  const opts = { maxWidth: DEFAULTS.spriteWidth };
+  assert.ok(normal.includes(renderSpriteFit(25, opts)), 'normal card lost the normal art');
+  assert.ok(shiny.includes(renderSpriteFit(25, Object.assign({ shiny: true }, opts))),
     'shiny card did not render the shiny art');
-  assert.ok(!shiny.includes(renderSprite(25, opts)), 'shiny card rendered the normal art');
+  assert.ok(!shiny.includes(renderSpriteFit(25, opts)), 'shiny card rendered the normal art');
 });
 
 test('a hand-written non-boolean shiny value is ignored, not half-trusted', () => {

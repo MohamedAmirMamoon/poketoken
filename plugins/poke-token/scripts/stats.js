@@ -18,7 +18,7 @@ const store = require(path.join(PLUGIN_ROOT, 'lib', 'store.js'));
 const { loadConfig, CONFIG_PATH, COLLECTION_PATH } = require(path.join(PLUGIN_ROOT, 'lib', 'config.js'));
 const { commas, pct, rule, TIER_LABEL } = require(path.join(PLUGIN_ROOT, 'lib', 'render.js'));
 const dex = require(path.join(PLUGIN_ROOT, 'data', 'dex.json'));
-const { renderSprite, renderSpritePlain, SAFE_SYSTEMMESSAGE_WIDTH } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
+const { renderSpriteFit, renderSpritePlain } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
 
 const TIERS = ['common', 'rare', 'legendary', 'mythical'];
 /** Generations present in the shipped dex, ascending. Derived so it never goes stale. */
@@ -228,17 +228,15 @@ function pokemonDetail(data, pokemon) {
     // catch banner gives; a not-yet-caught placeholder falls back to the escape-free
     // plain art (unless an explicit "color" mode opts into colour throughout).
     const colour = count > 0 || config.spriteMode === 'color';
-    const draw = colour ? renderSprite : renderSpritePlain;
     // The report is re-emitted as a systemMessage, which truncates past ~10KB.
-    // Colour art is dense, so cap its width to the safe ceiling or a wide sprite
-    // arrives cut off; plain art is tiny and keeps the configured width.
-    const maxWidth = colour
-      ? Math.min(config.spriteWidth, SAFE_SYSTEMMESSAGE_WIDTH)
-      : config.spriteWidth;
-    const art = draw(pokemon.id, {
-      maxWidth,
-      shiny: shinies > 0,
-    });
+    // Colour art is dense, so renderSpriteFit draws each species as wide as its
+    // own byte size allows under that cap rather than shrinking all of them to
+    // the densest one's width; the configured spriteWidth caps it from above for
+    // a narrow terminal. Plain art is escape-free and tiny, so it keeps the
+    // configured width directly.
+    const art = colour
+      ? renderSpriteFit(pokemon.id, { maxWidth: config.spriteWidth, shiny: shinies > 0 })
+      : renderSpritePlain(pokemon.id, { maxWidth: config.spriteWidth, shiny: shinies > 0 });
     if (art) {
       say(art);
       say();
