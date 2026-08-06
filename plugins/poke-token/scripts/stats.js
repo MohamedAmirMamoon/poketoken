@@ -17,6 +17,7 @@ const PLUGIN_ROOT = path.join(__dirname, '..');
 const store = require(path.join(PLUGIN_ROOT, 'lib', 'store.js'));
 const { loadConfig, CONFIG_PATH, COLLECTION_PATH } = require(path.join(PLUGIN_ROOT, 'lib', 'config.js'));
 const { commas, pct, rule, TIER_LABEL } = require(path.join(PLUGIN_ROOT, 'lib', 'render.js'));
+const color = require(path.join(PLUGIN_ROOT, 'lib', 'color.js'));
 const dex = require(path.join(PLUGIN_ROOT, 'data', 'dex.json'));
 const { renderSpriteFit, renderSpritePlain } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
 
@@ -232,13 +233,17 @@ function pokemonDetail(data, pokemon) {
   say(`POKEDEX  ${dexId(pokemon.id)}`);
   say();
 
+  // The same switch the whole detail card rides on: a caught species (or an
+  // explicit "color" mode) is drawn in colour, and everything else stays plain
+  // and escape-free for hosts that strip SGR from captured stdout. sprites:false
+  // is the user's blanket "no escapes" switch, so it forces the card fully plain
+  // -- the rarity label below shares this flag, so it never colours when the art
+  // would not, and never leaks an escape when sprites are off.
+  const colour = config.sprites !== false && (count > 0 || config.spriteMode === 'color');
+
   // Show the shiny art to anyone who has earned it: it is the whole point of
   // the reward, and a normal recolour would bury it.
   if (config.sprites !== false) {
-    // A caught species is shown in colour at fine resolution, the same reward the
-    // catch banner gives; a not-yet-caught placeholder falls back to the escape-free
-    // plain art (unless an explicit "color" mode opts into colour throughout).
-    const colour = count > 0 || config.spriteMode === 'color';
     // The report is re-emitted as a systemMessage, which truncates past ~10KB.
     // Colour art is dense, so renderSpriteFit draws each species as wide as its
     // own byte size allows under that cap rather than shrinking all of them to
@@ -254,11 +259,19 @@ function pokemonDetail(data, pokemon) {
     }
   }
 
+  // Dex number, name, then the three metrics -- no header rule between them. The
+  // rarity value is tinted with its tier accent (gold legendary, diamond
+  // mythical, silver rare, grey common), bold for the two premium tiers, so the
+  // rarity reads at a glance. In plain mode the label is left uncoloured so the
+  // report stays escape-free.
   say(`${dexId(pokemon.id)} ${pokemon.name.toUpperCase()}${shinies > 0 ? '  * SHINY *' : ''}`);
-  say(rule(pokemon.tier, undefined, shinies > 0));
   say();
+  const notable = pokemon.tier === 'legendary' || pokemon.tier === 'mythical';
+  const rarityValue = colour
+    ? color.fg(color.accentFor(pokemon.tier, false), TIER_LABEL[pokemon.tier], { bold: notable })
+    : TIER_LABEL[pokemon.tier];
   say(`  Generation   ${pokemon.gen}`);
-  say(`  Rarity       ${TIER_LABEL[pokemon.tier]}`);
+  say(`  Rarity       ${rarityValue}`);
   say(`  Caught       ${count} time${count !== 1 ? 's' : ''}`);
   if (shinies > 0) say(`  Shiny        ${shinies} of those`);
   if (count > 0) {

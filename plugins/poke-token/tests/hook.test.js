@@ -746,11 +746,14 @@ test('a species name shows its detail card with the catch history', () => {
     { id: 25, name: 'Pikachu', gen: 1, tier: 'common' },
   ]);
   const out = run(STATS, ['pikachu'], { dir }).stdout;
-  assert.ok(/#0025 PIKACHU/.test(out), out.slice(0, 200));
-  assert.ok(/Generation\s+1/.test(out), 'no generation row');
-  assert.ok(/Rarity\s+Common/.test(out), 'no rarity row');
-  assert.ok(/Caught\s+2 times/.test(out), `wrong count: ${out.match(/Caught.*/)}`);
-  assert.ok(/CATCH HISTORY/.test(out), 'no catch history');
+  // A caught species draws its rarity value in its tier colour, so strip SGR
+  // before matching the label -> value rows.
+  const plain = out.replace(/\x1b\[[0-9;]*m/g, '');
+  assert.ok(/#0025 PIKACHU/.test(plain), out.slice(0, 200));
+  assert.ok(/Generation\s+1/.test(plain), 'no generation row');
+  assert.ok(/Rarity\s+Common/.test(plain), 'no rarity row');
+  assert.ok(/Caught\s+2 times/.test(plain), `wrong count: ${plain.match(/Caught.*/)}`);
+  assert.ok(/CATCH HISTORY/.test(plain), 'no catch history');
 });
 
 test('a unique name prefix resolves, an ambiguous one falls back to the summary', () => {

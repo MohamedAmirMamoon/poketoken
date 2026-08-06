@@ -235,21 +235,30 @@ function headerRule(out) {
   return lines[at + 1];
 }
 
-test('a species card is headed by its own tier rule', () => {
-  // Charizard is Rare and Mew is Mythical, so the two cards must not share a rule.
-  const charizard = headerRule(pokedex(null, 'charizard'));
-  const mew = headerRule(pokedex(null, 'mew'));
-  assert.strictEqual(charizard, rule('rare'), `charizard rule was ${charizard}`);
-  assert.strictEqual(mew, rule('mythical'), `mew rule was ${mew}`);
-  assert.notStrictEqual(charizard, mew, 'a rare and a mythical card drew the same rule');
+test('a species card carries no header rule, only its title and metrics', () => {
+  // The detail view dropped the header rule: under the title comes a blank line,
+  // then the Generation / Rarity / Caught metrics. The rarity is carried by the
+  // colour of the Rarity value now, not by a rule glyph vocabulary.
+  for (const arg of ['charizard', 'mew']) {
+    const lines = pokedex(null, arg).split('\n');
+    const at = lines.findIndex((l) => /^#\d/.test(l));
+    assert.ok(at >= 0, `no title line for ${arg}`);
+    assert.strictEqual(lines[at + 1], '', `${arg}: a rule survived under the title`);
+    // None of the tier rule ramps should appear as a full-width line anywhere.
+    for (const tier of ['common', 'rare', 'legendary', 'mythical']) {
+      assert.ok(!lines.includes(rule(tier)), `${arg}: a ${tier} rule line survived`);
+    }
+  }
 });
 
-test('an owned shiny heads its card with the shiny rule', () => {
+test('an owned shiny detail card still shows the shiny mark, without a rule', () => {
   const out = pokedex({
     stats: { turns: 1, tokens: 9000, pulls: 1 },
     catches: [caught(25, 'Pikachu', 'common', true)],
   }, 'pikachu');
-  assert.strictEqual(headerRule(out), rule('common', RULE_WIDTH, true));
+  const lines = out.split('\n');
+  const at = lines.findIndex((l) => /^#\d/.test(l));
+  assert.strictEqual(lines[at + 1], '', 'a rule survived under the shiny card title');
   assert.ok(/SHINY/.test(out), 'the shiny mark is missing from the report');
 });
 
