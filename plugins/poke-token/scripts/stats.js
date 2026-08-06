@@ -18,7 +18,7 @@ const store = require(path.join(PLUGIN_ROOT, 'lib', 'store.js'));
 const { loadConfig, CONFIG_PATH, COLLECTION_PATH } = require(path.join(PLUGIN_ROOT, 'lib', 'config.js'));
 const { commas, pct, rule, TIER_LABEL } = require(path.join(PLUGIN_ROOT, 'lib', 'render.js'));
 const dex = require(path.join(PLUGIN_ROOT, 'data', 'dex.json'));
-const { renderSprite, renderSpritePlain } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
+const { renderSprite, renderSpritePlain, SAFE_SYSTEMMESSAGE_WIDTH } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
 
 const TIERS = ['common', 'rare', 'legendary', 'mythical'];
 /** Generations present in the shipped dex, ascending. Derived so it never goes stale. */
@@ -227,9 +227,16 @@ function pokemonDetail(data, pokemon) {
     // A caught species is shown in colour at fine resolution, the same reward the
     // catch banner gives; a not-yet-caught placeholder falls back to the escape-free
     // plain art (unless an explicit "color" mode opts into colour throughout).
-    const draw = (count > 0 || config.spriteMode === 'color') ? renderSprite : renderSpritePlain;
+    const colour = count > 0 || config.spriteMode === 'color';
+    const draw = colour ? renderSprite : renderSpritePlain;
+    // The report is re-emitted as a systemMessage, which truncates past ~10KB.
+    // Colour art is dense, so cap its width to the safe ceiling or a wide sprite
+    // arrives cut off; plain art is tiny and keeps the configured width.
+    const maxWidth = colour
+      ? Math.min(config.spriteWidth, SAFE_SYSTEMMESSAGE_WIDTH)
+      : config.spriteWidth;
     const art = draw(pokemon.id, {
-      maxWidth: config.spriteWidth,
+      maxWidth,
       shiny: shinies > 0,
     });
     if (art) {

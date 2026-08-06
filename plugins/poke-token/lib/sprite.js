@@ -14,6 +14,23 @@ const DEFAULT_MAX_WIDTH = 48;
 const DEFAULT_INDENT = '   ';
 
 /**
+ * The widest a colour sprite may be drawn when it will travel through a hook
+ * `systemMessage` (the catch banner and /pokedex).
+ *
+ * Truecolour art is dense: at width 48 the busiest species render past 16KB of
+ * escapes, and Claude Code truncates a systemMessage beyond ~10KB into a
+ * "<persisted-output>" file preview -- so the sprite arrives cut off instead of
+ * whole. The banner is the tightest consumer: its rarity card and shiny row sit
+ * in the same message as the art, so the cap has to hold the WHOLE banner under
+ * 10KB, not just the sprite. At width 32 the worst shiny legendary banner still
+ * lands at ~10.4KB and truncates; width 28 pulls every one of the 1025 species
+ * safely under 8.5KB, roughly 1.5KB of headroom below the cap. Callers that do
+ * NOT go through a systemMessage (the README SVG showcase) are free to ask for
+ * more.
+ */
+const SAFE_SYSTEMMESSAGE_WIDTH = 28;
+
+/**
  * Shading glyphs from darkest to lightest, for the escape-free renderer.
  *
  * Transparent pixels are drawn as a space rather than a ramp entry, so the
@@ -480,4 +497,5 @@ module.exports = {
   PLAIN_SUB,
   PLAIN_MAX_WIDTH,
   PLAIN_ASPECT,
+  SAFE_SYSTEMMESSAGE_WIDTH,
 };

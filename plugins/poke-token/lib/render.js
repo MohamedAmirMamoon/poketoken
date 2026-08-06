@@ -206,8 +206,16 @@ function renderCatch({ pokemon, tier, tokens, chance, roll, uniqueCount, totalCo
     // configured spriteMode.
     const lib = require('./sprite.js');
     const render = sprite || lib.renderSprite;
+    // The banner is emitted as a systemMessage, which truncates past ~10KB.
+    // Colour art is dense enough that a wide sprite blows that cap and arrives
+    // cut off, so hold the colour width to the safe ceiling even when the config
+    // asks for more. A caller-supplied renderer manages its own width.
+    const requested = config ? config.spriteWidth : undefined;
+    const maxWidth = sprite
+      ? requested
+      : Math.min(requested || lib.SAFE_SYSTEMMESSAGE_WIDTH, lib.SAFE_SYSTEMMESSAGE_WIDTH);
     art = render(pokemon.id, {
-      maxWidth: config ? config.spriteWidth : undefined,
+      maxWidth,
       shiny: !!shiny,
     }) || null;
   } catch (_) {
@@ -246,7 +254,7 @@ function renderCatch({ pokemon, tier, tokens, chance, roll, uniqueCount, totalCo
   // the gold and diamond genuinely stand out from the muted commons and rares.
   const rarityLine = color.fg(accent, TIER_LABEL[tier], { bold: notable });
 
-  const rows = [headline, numberLine, status];
+  const rows = [numberLine, status];
   // Shininess is its own line, independent of the tier, so a shiny duplicate
   // still shows both facts rather than one masking the other.
   if (shiny) rows.push(color.fg(color.SHINY_RGB, '✧ SHINY', { bold: true }));
@@ -255,9 +263,16 @@ function renderCatch({ pokemon, tier, tokens, chance, roll, uniqueCount, totalCo
   rows.push(color.dim(`Pokedex ${uniqueCount}/${dexSize} unique · ${totalCount} caught (${dexPct})`));
   rows.push(color.dim('/pokedex to view your collection'));
 
+  // The headline leads as a bare text line, not the sprite. This banner is
+  // emitted as a Stop-hook systemMessage, and Claude Code prepends its own label
+  // while eating the leading newline -- so whatever is first lands beside that
+  // label. If that is the sprite's top row, the art gets shunted sideways (the
+  // same collision commit e28dfa3 fixed for the /pokedex detail view). The
+  // headline takes the hit instead and announces the catch while doing it.
   return [
+    headline,
+    ...(art ? ['', art] : []),
     '',
-    ...(art ? [art, ''] : []),
     ...frameCard(accent, rows),
   ].join('\n');
 }

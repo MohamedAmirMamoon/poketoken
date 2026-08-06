@@ -476,6 +476,22 @@ test('sprites:true draws colour art by default, since the catch banner always co
   assert.ok(msg.indexOf('\x1b[48;2;') < msg.indexOf('╭'), 'art is not above the info card');
 });
 
+test('the colour banner leads with a plain text line, so the hook label misses the art', () => {
+  // The Stop hook prepends its own label and eats the leading newline, so
+  // whatever is first lands beside it. If that were the sprite's top row the art
+  // would be shunted sideways (the collision e28dfa3 fixed for the detail view).
+  // The first line must be plain text -- no escapes -- to take that hit.
+  const dir = freshDir('bannerlead');
+  writeConfig(dir, { ratePerToken: 1, maxChance: 1, sprites: true, spriteWidth: 32, spriteMode: 'color' });
+  const p = transcript(dir, [{ prompt: 'hi' }, { assistant: 'ok', id: 'm1', in: 500, out: 500 }]);
+  const msg = JSON.parse(run(HOOK, [], { input: payload(p), dir }).stdout).systemMessage;
+  const first = msg.split('\n')[0];
+  assert.strictEqual(first.indexOf('\x1b'), -1, `banner leads with escapes, not plain text: ${JSON.stringify(first.slice(0, 40))}`);
+  assert.ok(first.length > 0, 'banner leads with an empty line the label would still eat');
+  // And the art still comes before the card, as the ordering tests require.
+  assert.ok(msg.indexOf('\x1b[38;2;') < msg.indexOf('╭'), 'art is not above the info card');
+});
+
 console.log('\npull.js: shinies');
 
 /** Guarantees both the catch and the shiny, so the banner is deterministic. */
@@ -533,9 +549,12 @@ test('a shiny catch renders the recoloured art, not the normal art', () => {
   const shinyMsg = JSON.parse(run(HOOK, [], { input: payload(p), dir }).stdout).systemMessage;
   const id = readCollection(dir).catches[0].id;
 
-  const { renderSprite } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
-  const normalArt = renderSprite(id, { maxWidth: 32 });
-  const shinyArt = renderSprite(id, { maxWidth: 32, shiny: true });
+  const { renderSprite, SAFE_SYSTEMMESSAGE_WIDTH } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
+  // The banner holds colour art to the safe systemMessage width, so the expected
+  // art has to be drawn at that same cap even though the config asks for 32.
+  const bannerWidth = Math.min(32, SAFE_SYSTEMMESSAGE_WIDTH);
+  const normalArt = renderSprite(id, { maxWidth: bannerWidth });
+  const shinyArt = renderSprite(id, { maxWidth: bannerWidth, shiny: true });
   assert.ok(shinyMsg.includes(shinyArt), `#${id}: banner does not carry the shiny art`);
   assert.ok(!shinyMsg.includes(normalArt), `#${id}: banner carried the normal art instead`);
 });
@@ -825,9 +844,11 @@ test('owning a shiny makes the detail card render the shiny art', () => {
   const normal = run(STATS, ['pikachu'], { dir: normalDir }).stdout;
   const shiny = run(STATS, ['pikachu'], { dir: shinyDir }).stdout;
 
-  const { renderSprite } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
+  const { renderSprite, SAFE_SYSTEMMESSAGE_WIDTH } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
   const { DEFAULTS } = require(path.join(PLUGIN_ROOT, 'lib', 'config.js'));
-  const opts = { maxWidth: DEFAULTS.spriteWidth };
+  // The detail view goes out as a systemMessage, so colour art is capped to the
+  // safe width even when the default asks for more -- match that here.
+  const opts = { maxWidth: Math.min(DEFAULTS.spriteWidth, SAFE_SYSTEMMESSAGE_WIDTH) };
   assert.ok(normal.includes(renderSprite(25, opts)), 'normal card lost the normal art');
   assert.ok(shiny.includes(renderSprite(25, Object.assign({ shiny: true }, opts))),
     'shiny card did not render the shiny art');
