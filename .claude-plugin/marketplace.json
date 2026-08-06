@@ -10,7 +10,7 @@
     {
       "name": "poke-token",
       "source": "./plugins/poke-token",
-      "version": "1.3.0",
+      "version": "1.4.0",
       "description": "Catch Gen 1-9 Pokemon by spending tokens"
     }
   ]
