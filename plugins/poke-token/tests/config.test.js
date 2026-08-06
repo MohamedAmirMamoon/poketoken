@@ -274,7 +274,7 @@ test('no-arg invocation is the same as show', () => {
 test('set writes the value and reports was/now', () => {
   sandbox();
   const out = ok(cli('set', 'spriteWidth', '32'), 'set spriteWidth');
-  assert.ok(/was\s+64 columns/.test(out), out);
+  assert.ok(/was\s+48 columns/.test(out), out);
   assert.ok(/now\s+32 columns/.test(out), out);
   assert.strictEqual(readConfig().spriteWidth, 32);
 });

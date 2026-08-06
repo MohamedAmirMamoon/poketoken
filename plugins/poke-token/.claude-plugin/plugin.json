@@ -1,7 +1,7 @@
 {
   "name": "poke-token",
   "description": "Catch Gen 1-9 Pokemon by spending tokens. Every turn rolls for a catch, with odds scaled to the tokens that turn used.",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "author": {
     "name": "Amir Mamoon",
     "url": "https://github.com/MohamedAmirMamoon"

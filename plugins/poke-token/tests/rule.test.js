@@ -278,38 +278,32 @@ test('a tier filter is headed by that tier rule, a gen filter by the flat one', 
   assert.strictEqual(headerRule(pokedex(null, 'gen1')), rule());
 });
 
-test('the text-only reports are escape-free, but any species detail is colour', () => {
-  // The rule shares the captured stdout with the art. Any species detail view --
-  // caught or not -- now draws its sprite in colour by default (the report is
-  // surfaced through show.js's systemMessage relay, which keeps escapes intact),
-  // so those reports carry escapes by design; the text-only reports (summaries
-  // and filters) have no sprite and stay escape-free.
+test('every report but a caught-species detail is escape-free with the rules in place', () => {
+  // The rule shares the captured stdout with the art. A caught species now draws
+  // its reward art in colour, so those reports carry escapes by design; every
+  // other report -- summaries, filters, and not-yet-caught species -- stays
+  // escape-free, held to the same standard the plain sprite mode is.
   const collection = {
     stats: { turns: 9, tokens: 90000, pulls: 2 },
     catches: [caught(25, 'Pikachu', 'common', true), caught(384, 'Rayquaza', 'legendary')],
   };
-  // Summaries and filters draw no sprite, so they carry no escapes.
-  for (const arg of [undefined, 'legendary', 'gen1', 'missing', 'odds']) {
+  // `mew` is not in the collection, so its detail view falls back to plain art.
+  for (const arg of [undefined, 'mew', 'legendary', 'gen1', 'missing', 'odds']) {
     const out = pokedex(collection, arg);
     assert.strictEqual(out.indexOf('\x1b'), -1, `${arg}: report leaked an ESC byte`);
   }
-  // A species detail draws its art in colour, caught (`pikachu`) or not (`mew`).
-  for (const arg of ['pikachu', 'mew']) {
-    const detail = pokedex(collection, arg);
-    assert.ok(/\x1b\[38;2;\d+;\d+;\d+m/.test(detail),
-      `${arg}: species detail lost its colour art`);
-  }
+  // A caught species draws its art in colour, so escapes here are expected.
+  const caughtDetail = pokedex(collection, 'pikachu');
+  assert.ok(/\x1b\[38;2;\d+;\d+;\d+m/.test(caughtDetail),
+    'a caught species detail lost its colour art');
 });
 
 test('every report line stays within the rule width, so nothing wraps', () => {
   // The rule sets the report width; a body line running past it would make the
-  // header look short rather than the line look long. The colour sprite carries
-  // inline truecolour escapes, so measure the *visible* width with them stripped.
-  const ANSI = /\x1b\[[0-9;]*m/g;
+  // header look short rather than the line look long.
   const out = pokedex(null, 'charizard');
   for (const line of out.split('\n')) {
-    const width = line.replace(ANSI, '').length;
-    assert.ok(width <= RULE_WIDTH + 8, `line of ${width} visible chars: ${JSON.stringify(line)}`);
+    assert.ok(line.length <= RULE_WIDTH + 8, `line of ${line.length} chars: ${JSON.stringify(line)}`);
   }
 });
 

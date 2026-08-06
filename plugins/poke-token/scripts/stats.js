@@ -235,11 +235,10 @@ function pokemonDetail(data, pokemon) {
   // Show the shiny art to anyone who has earned it: it is the whole point of
   // the reward, and a normal recolour would bury it.
   if (config.sprites !== false) {
-    // Both caught and uncaught species render in colour at fine resolution by
-    // default -- the report reaches the UI only through the systemMessage relay
-    // (show.js), which paints escapes intact, so colour is the sharp default and
-    // an explicit "plain" mode is the escape-free opt-out.
-    const colour = count > 0 || config.spriteMode !== 'plain';
+    // A caught species is shown in colour at fine resolution, the same reward the
+    // catch banner gives; a not-yet-caught placeholder falls back to the escape-free
+    // plain art (unless an explicit "color" mode opts into colour throughout).
+    const colour = count > 0 || config.spriteMode === 'color';
     // The report is re-emitted as a systemMessage, which truncates past ~10KB.
     // Colour art is dense, so renderSpriteFit draws each species as wide as its
     // own byte size allows under that cap rather than shrinking all of them to
