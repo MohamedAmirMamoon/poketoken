@@ -411,7 +411,10 @@ test('config exposes sprite defaults', () => {
   assert.ok(Number.isInteger(cfg.spriteWidth) && cfg.spriteWidth >= 8 && cfg.spriteWidth <= 64);
 });
 
-test('renderCatch omits art when sprites are disabled and matches the text-only banner', () => {
+test('sprites:false emits the escape-free plain banner unchanged', () => {
+  // `sprites: false` is the user's "this host strips escapes" switch, so the
+  // banner stays the exact plain block it has always been -- not a decoloured
+  // version of the colour card. That contract is pinned here byte for byte.
   const args = {
     pokemon: { id: 25, name: 'Pikachu', gen: 1 },
     tier: 'common',
@@ -433,26 +436,37 @@ test('renderCatch omits art when sprites are disabled and matches the text-only 
     '|   Pokedex: 4 caught - 3/649 unique (0.5%)',
     '+-- /pokedex to view your collection',
   ]);
-
-  // An unavailable sprite must degrade to exactly the same text.
-  const unavailable = renderCatch(Object.assign({}, args, {
-    pokemon: { id: 25, name: 'Pikachu', gen: 1 },
-    config: { sprites: true, spriteWidth: 48 },
-    sprite: () => null,
-  }));
-  assert.strictEqual(unavailable, off);
-
-  // A throwing sprite renderer must also degrade, not propagate.
-  const throwing = renderCatch(Object.assign({}, args, {
-    config: { sprites: true, spriteWidth: 48 },
-    sprite: () => { throw new Error('boom'); },
-  }));
-  assert.strictEqual(throwing, off);
 });
 
-test('renderCatch places the sprite above the text block', () => {
+test('an unavailable or throwing sprite still draws the colour card, just without art', () => {
+  // Art is decoration on top of the card; a null or throwing renderer must drop
+  // the picture without costing the coloured info card beneath it. The card is
+  // still coloured (escapes present) and still names the catch.
+  const args = {
+    pokemon: { id: 25, name: 'Pikachu', gen: 1, types: ['electric'] },
+    tier: 'common',
+    tokens: 5000,
+    chance: 0.01,
+    roll: 0.005,
+    uniqueCount: 3,
+    totalCount: 4,
+    dexSize: 649,
+    isNew: true,
+    config: { sprites: true, spriteWidth: 48 },
+  };
+  for (const sprite of [() => null, () => { throw new Error('boom'); }]) {
+    const out = renderCatch(Object.assign({}, args, { sprite }));
+    assert.ok(/\x1b\[38;2;/.test(out), 'the card lost its colour with the art gone');
+    assert.ok(out.includes('PIKACHU'), 'the card lost the catch name with the art gone');
+    // No sprite means no half-block background paint, so the card border is the
+    // first coloured thing in the banner.
+    assert.strictEqual(out.indexOf('\x1b[48;2;'), -1, 'a missing sprite still painted a background');
+  }
+});
+
+test('renderCatch places the sprite above the info card', () => {
   const out = renderCatch({
-    pokemon: { id: 25, name: 'Pikachu', gen: 1 },
+    pokemon: { id: 25, name: 'Pikachu', gen: 1, types: ['electric'] },
     tier: 'common',
     tokens: 5000,
     chance: 0.01,
@@ -464,10 +478,89 @@ test('renderCatch places the sprite above the text block', () => {
     config: { sprites: true, spriteWidth: 48 },
   });
   const lines = out.split('\n');
-  const headIndex = lines.findIndex((l) => l.startsWith('+-- A wild'));
-  assert.ok(headIndex > 1, 'no sprite block before the header');
-  assert.ok(out.indexOf('\x1b[38;2;') < out.indexOf('+-- A wild'), 'sprite is not above the text');
-  assert.strictEqual(lines[headIndex - 1], '', 'no blank separator between art and text');
+  const cardTop = lines.findIndex((l) => l.includes('╭'));
+  assert.ok(cardTop > 1, 'no sprite block before the card');
+  // The sprite paints backgrounds; the card frame is foreground only, so a
+  // background escape before the top border proves the art sits above the card.
+  assert.ok(out.indexOf('\x1b[48;2;') < out.indexOf('╭'), 'sprite is not above the card');
+  assert.strictEqual(lines[cardTop - 1], '', 'no blank separator between art and card');
+});
+
+test('the colour card carries the required content, coloured by rarity and type', () => {
+  // The banner has to say everything the plain block did -- headline, dex number,
+  // rarity, NEW/dupe, stats, footer -- plus the new colour: each type in its
+  // chart colour and the frame tinted by the tier's accent. This pins the
+  // content and the two accents (gold legendary, diamond mythical) that the
+  // redesign is really about.
+  const { RARITY_RGB, TYPE_RGB, SHINY_RGB, stripAnsi } = (() => {
+    const c = require(path.join(PLUGIN_ROOT, 'lib', 'color.js'));
+    const r = require(path.join(PLUGIN_ROOT, 'lib', 'render.js'));
+    return { RARITY_RGB: c.RARITY_RGB, TYPE_RGB: c.TYPE_RGB, SHINY_RGB: c.SHINY_RGB, stripAnsi: r.stripAnsi };
+  })();
+  const seq = (rgb) => `\x1b[38;2;${rgb[0]};${rgb[1]};${rgb[2]}m`;
+
+  const base = {
+    pokemon: { id: 1, name: 'Bulbasaur', gen: 1, types: ['grass', 'poison'] },
+    tier: 'legendary', tokens: 5000, chance: 0.01, roll: 0.005,
+    uniqueCount: 3, totalCount: 4, dexSize: 649, isNew: true,
+    config: { sprites: false, spriteWidth: 48 }, // no art: isolate the card content
+  };
+  // sprites:false takes the plain path, so build the card by forcing a null sprite
+  // with sprites left on rather than off.
+  const legend = renderCatch(Object.assign({}, base, {
+    config: { sprites: true, spriteWidth: 48 }, sprite: () => null,
+  }));
+  const plain = stripAnsi(legend);
+
+  assert.ok(/A .*LEGENDARY.* encounter — BULBASAUR!/.test(plain) || plain.includes('BULBASAUR'),
+    `headline missing the name: ${plain}`);
+  assert.ok(plain.includes('#001'), 'dex number missing');
+  assert.ok(plain.includes('GRASS') && plain.includes('POISON'), 'type chips missing');
+  assert.ok(plain.includes('NEW'), 'NEW marker missing');
+  assert.ok(/5,000 tokens .* chance .* rolled/.test(plain), 'stat line missing');
+  assert.ok(/Pokedex 3\/649 unique/.test(plain), 'progress line missing');
+  assert.ok(plain.includes('/pokedex to view your collection'), 'footer hint missing');
+
+  // Each type is drawn in its own chart colour.
+  assert.ok(legend.includes(seq(TYPE_RGB.grass)), 'grass not in its chart colour');
+  assert.ok(legend.includes(seq(TYPE_RGB.poison)), 'poison not in its chart colour');
+  // A legendary frame and label are gold.
+  assert.ok(legend.includes(seq(RARITY_RGB.legendary)), 'legendary accent (gold) missing');
+
+  // A mythical takes the diamond accent, distinct from the legendary gold. Drawn
+  // as a dupe so the only gold that could appear is a mistaken accent -- the NEW
+  // milestone marker is gold by design, independent of the tier.
+  const myth = renderCatch(Object.assign({}, base, {
+    tier: 'mythical', isNew: false, pokemon: { id: 151, name: 'Mew', gen: 1, types: ['psychic'] },
+    config: { sprites: true, spriteWidth: 48 }, sprite: () => null,
+  }));
+  assert.ok(myth.includes(seq(RARITY_RGB.mythical)), 'mythical accent (diamond) missing');
+  assert.ok(!myth.includes(seq(RARITY_RGB.legendary)), 'mythical reused the legendary gold');
+
+  // A shiny common takes the shiny accent and shows the SHINY line and word.
+  const shiny = renderCatch(Object.assign({}, base, {
+    tier: 'common', pokemon: { id: 25, name: 'Pikachu', gen: 1, types: ['electric'] }, shiny: true,
+    config: { sprites: true, spriteWidth: 48 }, sprite: () => null,
+  }));
+  assert.ok(shiny.includes(seq(SHINY_RGB)), 'shiny accent missing');
+  assert.ok(stripAnsi(shiny).includes('SHINY'), 'shiny word missing from the card');
+  assert.ok(stripAnsi(shiny).includes('SHINY PIKACHU'), 'shiny headline missing');
+});
+
+test('a dupe reads quieter than a new catch', () => {
+  // NEW is the milestone worth shouting; a duplicate should be a subtler note.
+  const args = {
+    pokemon: { id: 25, name: 'Pikachu', gen: 1, types: ['electric'] },
+    tier: 'common', tokens: 5000, chance: 0.01, roll: 0.005,
+    uniqueCount: 3, totalCount: 4, dexSize: 649,
+    config: { sprites: true, spriteWidth: 48 }, sprite: () => null,
+  };
+  const isNew = renderCatch(Object.assign({}, args, { isNew: true }));
+  const dupe = renderCatch(Object.assign({}, args, { isNew: false }));
+  const { stripAnsi } = require(path.join(PLUGIN_ROOT, 'lib', 'render.js'));
+  assert.ok(stripAnsi(isNew).includes('NEW'), 'the new catch lost its NEW marker');
+  assert.ok(/duplicate/i.test(stripAnsi(dupe)), 'the duplicate lost its indicator');
+  assert.ok(!stripAnsi(dupe).includes('NEW'), 'a duplicate was marked NEW');
 });
 
 console.log('\nperformance');

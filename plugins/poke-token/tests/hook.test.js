@@ -458,7 +458,10 @@ test('spriteMode:color emits truecolour escapes above the banner', () => {
   const p = transcript(dir, [{ prompt: 'hi' }, { assistant: 'ok', id: 'm1', in: 500, out: 500 }]);
   const msg = JSON.parse(run(HOOK, [], { input: payload(p), dir }).stdout).systemMessage;
   assert.ok(/\x1b\[38;2;\d+;\d+;\d+m/.test(msg), 'no truecolour foreground in the hook output');
-  assert.ok(msg.indexOf('\x1b[38;2;') < msg.indexOf('+-- '), 'art is not above the text block');
+  // The sprite paints backgrounds (`48;2;`); the info card's frame is foreground
+  // only. So a background escape sitting before the card's top border (╭) is proof
+  // the art is drawn above the card rather than below or inside it.
+  assert.ok(msg.indexOf('\x1b[48;2;') < msg.indexOf('╭'), 'art is not above the info card');
 });
 
 test('sprites:true draws colour art by default, since the catch banner always colours', () => {
@@ -469,7 +472,8 @@ test('sprites:true draws colour art by default, since the catch banner always co
   // A caught Pokemon's banner always renders in colour, so the default banner now
   // carries truecolour escapes rather than plain block glyphs.
   assert.ok(/\x1b\[38;2;\d+;\d+;\d+m/.test(msg), 'the default banner lost its colour art');
-  assert.ok(msg.indexOf('\x1b[38;2;') < msg.indexOf('+-- '), 'art is not above the text block');
+  // See above: a sprite background escape before the card border proves the order.
+  assert.ok(msg.indexOf('\x1b[48;2;') < msg.indexOf('╭'), 'art is not above the info card');
 });
 
 console.log('\npull.js: shinies');

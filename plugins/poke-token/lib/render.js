@@ -1,5 +1,7 @@
 'use strict';
 
+const color = require('./color.js');
+
 const TIER_LABEL = {
   common: 'Common',
   rare: 'Rare',
@@ -110,56 +112,153 @@ function pad(id) {
   return String(id).padStart(3, '0');
 }
 
+/** Strips SGR escapes so a coloured line's on-screen width can be measured. */
+function stripAnsi(s) {
+  return s.replace(/\x1b\[[0-9;]*m/g, '');
+}
+
+/** On-screen width of a line, i.e. its length once the escapes are removed. */
+function visibleWidth(s) {
+  return stripAnsi(s).length;
+}
+
+/**
+ * Frames a stack of already-coloured rows in a box drawn in the accent colour.
+ *
+ * The width has to be measured with the escapes stripped, since a coloured row
+ * is far longer as a string than it is on screen; padding by raw length would
+ * push every right border a random distance off the edge. Each row is padded to
+ * the widest row's visible width so the borders line up into a rectangle.
+ *
+ * The border sequence is spent per line rather than left open, so the accent
+ * colour can never bleed past a border into the content or the row beneath.
+ *
+ * @param {[number,number,number]} accent frame colour
+ * @param {string[]} rows coloured content lines, no border
+ * @returns {string[]} the framed card, top border to bottom
+ */
+function frameCard(accent, rows) {
+  const bar = color.fg(accent, '│', { bold: true }); // │, redrawn each side
+  const inner = Math.max(1, ...rows.map(visibleWidth));
+  const horizontal = '─'.repeat(inner + 2); // ─, one space of padding each side
+  const top = color.fg(accent, `╭${horizontal}╮`, { bold: true }); // ╭╮
+  const bottom = color.fg(accent, `╰${horizontal}╯`, { bold: true }); // ╰╯
+  const body = rows.map((row) => {
+    const gap = ' '.repeat(inner - visibleWidth(row));
+    return `${bar} ${row}${gap} ${bar}`;
+  });
+  return [top, ...body, bottom];
+}
+
 /**
  * The banner appended after a turn that produced a catch.
  *
- * When `config.sprites` is on and the sprite bakes cleanly, the art is placed
- * above the text block; otherwise the text block is emitted unchanged.
+ * Two shapes come out of here. The default is a colour card: a truecolour sprite
+ * above a box whose frame, headline and rarity label all take the rarity's accent
+ * colour, so a legendary reads as gold and a common as muted grey at a glance.
+ * This is what ships, because the banner is delivered as a hook `systemMessage`
+ * and Claude Code paints those with the escapes intact.
+ *
+ * The other is the plain text block, drawn only when `config.sprites` is false.
+ * That flag is the user's "no escapes" switch -- some hosts strip SGR from
+ * captured output -- so it stays byte-for-byte the escape-free banner it has
+ * always been rather than a decoloured version of the new card.
  */
 function renderCatch({ pokemon, tier, tokens, chance, roll, uniqueCount, totalCount, dexSize, isNew, config, sprite, shiny }) {
   const notable = tier === 'mythical' || tier === 'legendary';
-  let head;
-  if (shiny) {
-    // A shiny outranks the tier headline: it is the rarer of the two events, and
-    // burying it under "A LEGENDARY encounter" is how people miss it entirely.
-    head = `${TIER_ICON[tier]} SHINY!! A shiny ${pokemon.name.toUpperCase()} appeared and was caught!`;
-  } else if (notable) {
-    head = `${TIER_ICON[tier]} A ${TIER_LABEL[tier]} encounter! ${pokemon.name.toUpperCase()} was caught!`;
-  } else {
-    head = `A wild ${pokemon.name.toUpperCase()} appeared and was caught!`;
+  const name = pokemon.name.toUpperCase();
+  const dexPct = dexSize > 0 ? pct(uniqueCount / dexSize, 1) : '0.0%';
+
+  // The escape-free fallback: only when the user has explicitly turned art off.
+  // Kept identical to the historical banner so a host that strips escapes still
+  // gets exactly the plain block it always did.
+  if (config && config.sprites === false) {
+    let head;
+    if (shiny) {
+      // A shiny outranks the tier headline: it is the rarer of the two events,
+      // and burying it under "A LEGENDARY encounter" is how people miss it.
+      head = `${TIER_ICON[tier]} SHINY!! A shiny ${name} appeared and was caught!`;
+    } else if (notable) {
+      head = `${TIER_ICON[tier]} A ${TIER_LABEL[tier]} encounter! ${name} was caught!`;
+    } else {
+      head = `A wild ${name} appeared and was caught!`;
+    }
+    const marks = [TIER_LABEL[tier]];
+    if (shiny) marks.push('SHINY');
+    marks.push(isNew ? 'NEW' : 'dupe');
+    return [
+      '',
+      `+-- ${head}`,
+      `|   #${pad(pokemon.id)} - Gen ${pokemon.gen} - ${marks.join(' - ')}`,
+      `|   ${commas(tokens)} tokens -> ${pct(chance)} chance -> rolled ${pct(roll)}`,
+      `|   Pokedex: ${totalCount} caught - ${uniqueCount}/${dexSize} unique (${dexPct})`,
+      `+-- /pokedex to view your collection`,
+    ].join('\n');
   }
+
+  const accent = color.accentFor(tier, shiny);
 
   let art = null;
-  if (!config || config.sprites !== false) {
-    try {
-      // An explicit renderer from the caller wins; otherwise a just-caught
-      // Pokemon always shows in colour at fine resolution, since the catch banner
-      // is the celebratory reward and colour art earns its keep here regardless of
-      // the configured spriteMode.
-      const lib = require('./sprite.js');
-      const render = sprite || lib.renderSprite;
-      art = render(pokemon.id, {
-        maxWidth: config ? config.spriteWidth : undefined,
-        shiny: !!shiny,
-      }) || null;
-    } catch (_) {
-      // Art is decoration; a missing or broken sprite must not cost the banner.
-      art = null;
-    }
+  try {
+    // An explicit renderer from the caller wins; otherwise a just-caught Pokemon
+    // always shows in colour at fine resolution, since the catch banner is the
+    // celebratory reward and colour art earns its keep here regardless of the
+    // configured spriteMode.
+    const lib = require('./sprite.js');
+    const render = sprite || lib.renderSprite;
+    art = render(pokemon.id, {
+      maxWidth: config ? config.spriteWidth : undefined,
+      shiny: !!shiny,
+    }) || null;
+  } catch (_) {
+    // Art is decoration; a missing or broken sprite drops the picture but must
+    // never cost the coloured card beneath it.
+    art = null;
   }
 
-  const dupe = isNew ? 'NEW' : 'dupe';
-  const marks = [TIER_LABEL[tier]];
-  if (shiny) marks.push('SHINY');
-  marks.push(dupe);
+  // The headline. A shiny takes it whatever the tier -- see the accent above for
+  // why -- and the notable tiers keep their bit of encounter flavour.
+  let headline;
+  if (shiny) {
+    headline = `✧ A wild SHINY ${name} appeared!`;
+  } else if (notable) {
+    headline = `✦ A ${TIER_LABEL[tier]} encounter — ${name}!`;
+  } else {
+    headline = `✦ A wild ${name} appeared!`;
+  }
+
+  // Dex number in the accent, then the type chips each in its chart colour, so a
+  // Grass/Poison catch reads as green-and-purple beside its number. Types are
+  // whatever the dex entry carries; an entry without them just drops the chips.
+  const types = Array.isArray(pokemon.types) ? pokemon.types : [];
+  const chips = types.map((t) => color.fg(color.typeColor(t), t.toUpperCase())).join(color.dim(' / '));
+  const numberLine = color.fg(accent, `#${pad(pokemon.id)}`, { bold: true })
+    + color.dim(`  Gen ${pokemon.gen}`)
+    + (chips ? `   ${chips}` : '');
+
+  // NEW is the milestone worth shouting, in gold; a duplicate is a quieter,
+  // dimmer note so the run of dupes between new catches does not read as loud.
+  const status = isNew
+    ? color.fg(color.NEW_RGB, `★ NEW`, { bold: true }) + color.fg(color.NEW_RGB, ' — added to your Pokedex')
+    : color.dim('↺ duplicate — already in your Pokedex');
+
+  // The rarity label in its own colour, bold only for the two premium tiers so
+  // the gold and diamond genuinely stand out from the muted commons and rares.
+  const rarityLine = color.fg(accent, TIER_LABEL[tier], { bold: notable });
+
+  const rows = [headline, numberLine, status];
+  // Shininess is its own line, independent of the tier, so a shiny duplicate
+  // still shows both facts rather than one masking the other.
+  if (shiny) rows.push(color.fg(color.SHINY_RGB, '✧ SHINY', { bold: true }));
+  rows.push(rarityLine, '');
+  rows.push(color.dim(`${commas(tokens)} tokens → ${pct(chance)} chance → rolled ${pct(roll)}`));
+  rows.push(color.dim(`Pokedex ${uniqueCount}/${dexSize} unique · ${totalCount} caught (${dexPct})`));
+  rows.push(color.dim('/pokedex to view your collection'));
+
   return [
     '',
     ...(art ? [art, ''] : []),
-    `+-- ${head}`,
-    `|   #${pad(pokemon.id)} - Gen ${pokemon.gen} - ${marks.join(' - ')}`,
-    `|   ${commas(tokens)} tokens -> ${pct(chance)} chance -> rolled ${pct(roll)}`,
-    `|   Pokedex: ${totalCount} caught - ${uniqueCount}/${dexSize} unique (${dexSize > 0 ? pct(uniqueCount / dexSize, 1) : '0.0%'})`,
-    `+-- /pokedex to view your collection`,
+    ...frameCard(accent, rows),
   ].join('\n');
 }
 
@@ -171,6 +270,9 @@ function renderMiss({ tokens, chance, roll }) {
 module.exports = {
   renderCatch,
   renderMiss,
+  frameCard,
+  stripAnsi,
+  visibleWidth,
   rule,
   TIER_LABEL,
   TIER_ICON,
