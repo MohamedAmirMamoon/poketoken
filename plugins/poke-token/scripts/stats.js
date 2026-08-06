@@ -213,6 +213,14 @@ function pokemonDetail(data, pokemon) {
   const count = catches.length;
   const shinies = catches.filter((c) => c.shiny).length;
 
+  // A text header on line 0, not the sprite. This view is re-emitted as a hook
+  // systemMessage, and Claude Code prepends "PostToolUse:Bash says:" while eating
+  // the leading newline -- so whatever is first lands beside that label. If that
+  // is the sprite's top row, the art gets shunted sideways; a title line takes
+  // the hit instead and names the entry while doing it.
+  say(`POKEDEX  ${dexId(pokemon.id)}`);
+  say();
+
   // Show the shiny art to anyone who has earned it: it is the whole point of
   // the reward, and a normal recolour would bury it.
   if (config.sprites !== false) {

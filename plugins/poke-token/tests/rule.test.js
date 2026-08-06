@@ -224,9 +224,13 @@ function caught(id, name, tier, shiny) {
 /** The header rule of a report: the line directly after the title. */
 function headerRule(out) {
   const lines = out.split('\n');
-  // The detail card puts the sprite above the title, so find the title itself
-  // rather than assuming it is the first line.
-  const at = lines.findIndex((l) => /^(#\d|POKEDEX|POKE-TOKEN)/.test(l));
+  // The detail card puts the sprite above the title, and above that a
+  // "POKEDEX  #NNNN" view header (so the "PostToolUse:Bash says:" label lands on
+  // text, not the sprite's top row). Its own title is the "#NNNN NAME" line, so
+  // prefer that; only the summary and filter views, which have no such line,
+  // fall back to their "POKEDEX"/"POKE-TOKEN" heading.
+  let at = lines.findIndex((l) => /^#\d/.test(l));
+  if (at < 0) at = lines.findIndex((l) => /^(POKEDEX|POKE-TOKEN)/.test(l));
   assert.ok(at >= 0, `no title line in report:\n${out}`);
   return lines[at + 1];
 }
