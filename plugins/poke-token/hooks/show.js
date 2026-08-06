@@ -75,10 +75,17 @@ async function main() {
   if (typeof out !== 'string') return;
   // Trailing newlines only -- interior spacing carries the silhouette.
   out = out.replace(/\n+$/, '');
+  // Whitespace-only output has nothing to paint; relaying it would surface a
+  // blank systemMessage instead of standing down.
+  if (out.trim() === '') return;
 
-  // Plain output relays fine on its own; only colour (escape-bearing) output
-  // needs the systemMessage channel. `\x1b[` is the CSI that begins every SGR.
-  if (!out || out.indexOf('\x1b[') === -1) return;
+  // Every /pokedex view must be relayed here -- colour art or plain text alike.
+  // pokedex.md tells the model to emit zero text for every case, so this hook is
+  // the only thing that surfaces the report. (The old "plain relays fine on its
+  // own" gate held only under the previous contract, where the model echoed the
+  // report's text itself; that instruction is gone.) Escape-free output left
+  // un-relayed is collapsed by the UI as "+N lines" and never seen.
+  if (!out) return;
 
   // Something truncated or oversized: re-emitting a broken sprite is worse than
   // letting the plain relay path handle it.

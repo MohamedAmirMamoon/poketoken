@@ -26,6 +26,7 @@ const { spawnSync } = require('child_process');
 const PLUGIN_ROOT = path.join(__dirname, '..');
 const HOOK = path.join(PLUGIN_ROOT, 'hooks', 'pull.js');
 const STATS = path.join(PLUGIN_ROOT, 'scripts', 'stats.js');
+const SHOW = path.join(PLUGIN_ROOT, 'hooks', 'show.js');
 const dex = require(path.join(PLUGIN_ROOT, 'data', 'dex.json'));
 
 const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'tp-hook-'));
@@ -700,6 +701,19 @@ test('odds reports the configured rate, and survives a rate of 1', () => {
   assert.ok(!/per 0 tokens/.test(r.stdout), 'reported "per 0 tokens"');
 });
 
+test('missing caps names per generation and stays under the systemMessage cap', () => {
+  // Worst case: an empty collection is missing every species. Naming all ~1025
+  // would blow past the ~10KB cap the report is relayed through, so each gen
+  // shows a slice, its true total, and a "+N more" tail.
+  const dir = freshDir('stats-missing');
+  const r = run(STATS, ['missing'], { dir });
+  assert.strictEqual(r.status, 0, `exit ${r.status}`);
+  assert.ok(Buffer.byteLength(r.stdout) < 10000,
+    `missing view is ${Buffer.byteLength(r.stdout)}B, over the ~10KB cap`);
+  assert.ok(/Gen 1 - 151 missing/.test(r.stdout), 'lost the true per-gen total');
+  assert.ok(/\.\.\. and \d+ more/.test(r.stdout), 'no "+N more" tail for a capped generation');
+});
+
 test('a corrupt collection yields a message, not a stack trace', () => {
   const dir = freshDir('stats-corrupt');
   fs.writeFileSync(path.join(dir, 'poke-token', 'collection.json'), 'totally not json');
@@ -901,6 +915,57 @@ test('repeated hook runs accumulate turns and tokens honestly', () => {
   assert.strictEqual(data.stats.pulls, 0);
   const r = run(STATS, ['odds'], { dir });
   assert.ok(/Turns\s+5/.test(r.stdout), `odds view lost the turn count: ${r.stdout.match(/Turns.*/)}`);
+});
+
+console.log('\nshow.js: the PostToolUse relay');
+
+/** A PostToolUse payload carrying the /pokedex Bash command and its captured stdout. */
+function showPayload(stdout, over) {
+  return JSON.stringify(Object.assign({
+    hook_event_name: 'PostToolUse',
+    tool_input: { command: 'node "/x/poke-token/scripts/stats.js" -- rayquaza' },
+    tool_response: { stdout, stderr: '', interrupted: false },
+  }, over || {}));
+}
+
+test('an escape-free /pokedex report is relayed, not left to collapse', () => {
+  // The core regression: a plain (no-escape) report -- the bare grid, a filter,
+  // or an uncaught detail -- must still reach the systemMessage channel. Left
+  // un-relayed the UI collapses it as "+N lines" and the user sees nothing.
+  const plain = 'POKEDEX  #0384\n\n#0384 RAYQUAZA\nGeneration 3\nNot yet caught.';
+  const r = run(SHOW, [], { input: showPayload(plain) });
+  assert.strictEqual(r.status, 0, `show.js exited ${r.status}: ${r.stderr}`);
+  const parsed = JSON.parse(r.stdout);
+  assert.strictEqual(parsed.systemMessage, plain, 'the plain report was not relayed verbatim');
+  assert.strictEqual(parsed.suppressOutput, true, 'the raw tool output was not suppressed');
+});
+
+test('a colour report is still relayed', () => {
+  const colour = 'POKEDEX  #0025\n\x1b[38;2;255;0;0m▀\x1b[0m\n#0025 PIKACHU';
+  const r = run(SHOW, [], { input: showPayload(colour) });
+  const parsed = JSON.parse(r.stdout);
+  assert.strictEqual(parsed.systemMessage, colour, 'the colour report was not relayed');
+  assert.strictEqual(parsed.suppressOutput, true);
+});
+
+test('empty stdout stands down rather than emitting an empty systemMessage', () => {
+  const r = run(SHOW, [], { input: showPayload('   \n\n') });
+  assert.strictEqual(r.status, 0, `show.js exited ${r.status}: ${r.stderr}`);
+  assert.strictEqual(r.stdout.trim(), '', 'empty output should produce no systemMessage');
+});
+
+test('a command that is not the stats script is ignored', () => {
+  const r = run(SHOW, [], { input: showPayload('anything', { tool_input: { command: 'ls -la' } }) });
+  assert.strictEqual(r.stdout.trim(), '', 'show.js relayed output for an unrelated command');
+});
+
+test('an oversized or truncated capture stands down', () => {
+  const huge = 'x'.repeat(60001);
+  assert.strictEqual(run(SHOW, [], { input: showPayload(huge) }).stdout.trim(), '',
+    'show.js relayed an over-limit capture');
+  const persisted = 'POKEDEX\n<persisted-output>file preview</persisted-output>';
+  assert.strictEqual(run(SHOW, [], { input: showPayload(persisted) }).stdout.trim(), '',
+    'show.js relayed a persisted-output preview');
 });
 
 process.on('exit', () => {

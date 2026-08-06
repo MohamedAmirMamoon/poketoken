@@ -46,7 +46,7 @@ const SAFE_SYSTEMMESSAGE_WIDTH = 28;
  * the size real granularity; per-sprite byte size rises monotonically with
  * width, so the first fit from the top is also the widest safe one.
  */
-const FIT_WIDTH_LADDER = [48, 44, 40, 36, 32, 28];
+const FIT_WIDTH_LADDER = [64, 60, 56, 52, 48, 44, 40, 36, 32, 28];
 
 /**
  * Byte budget for the ART ALONE when it must fit through a systemMessage.

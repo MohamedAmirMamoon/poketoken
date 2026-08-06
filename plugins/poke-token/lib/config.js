@@ -52,17 +52,17 @@ const DEFAULTS = {
   // Draw the caught Pokemon as truecolour half-block art above the banner.
   sprites: true,
   // Terminal columns the sprite is downsampled to fit.
-  spriteWidth: 48,
+  spriteWidth: 64,
   // How sprite art is drawn:
-  //   "plain" - block glyphs only, no escape codes, and the default. Slash
-  //             command output is captured as a plain string with the ESC bytes
-  //             stripped, which renders colour art as literal `[38;2;...m` noise;
-  //             this mode trades colour for a shape that survives that capture.
-  //             Quadrant glyphs resolve the silhouette at half-cell precision, so
-  //             the loss is the colour rather than the detail.
-  //   "color" - truecolour half-block art. Sharper in a terminal that shows it,
-  //             but unreadable anywhere the escapes are stripped.
-  spriteMode: 'plain',
+  //   "color" - truecolour half-block art, and the default. The report reaches
+  //             the terminal through the show.js systemMessage relay, which
+  //             paints the escapes intact, so this is the sharp default.
+  //   "plain" - block glyphs only, no escape codes. The escape-free opt-out for
+  //             anywhere the ESC bytes are stripped rather than painted, where
+  //             colour art would show as literal `[38;2;...m` noise. Quadrant
+  //             glyphs resolve the silhouette at half-cell precision, so the
+  //             loss is the colour rather than the detail.
+  spriteMode: 'color',
   // Chance a catch is the alternate-colour (shiny) variant. The games use
   // 1/4096, which at these catch rates would be a once-a-decade event; 1/128
   // keeps it a genuine surprise you might actually live to see.

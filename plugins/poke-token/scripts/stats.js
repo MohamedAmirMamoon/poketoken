@@ -167,6 +167,13 @@ function filtered(data, { gen, tier }) {
   }
 }
 
+// The most a single generation lists by name before collapsing the rest into a
+// "+N more" tail. An empty collection is missing all ~1025 species; naming every
+// one blows past the ~10KB systemMessage cap the report is relayed through (and
+// a wall of 1025 names is unreadable anyway), so each gen shows a scannable
+// slice and its true total. Four rows of six keeps every gen well within budget.
+const MISSING_NAMES_PER_GEN = 24;
+
 function missing(data) {
   const owned = new Set(data.catches.map((c) => c.id));
   say('POKEDEX - STILL MISSING');
@@ -175,9 +182,13 @@ function missing(data) {
     const gaps = dex.pokemon.filter((p) => p.gen === g && !owned.has(p.id));
     say();
     say(`  Gen ${g} - ${gaps.length} missing`);
-    // Keep the output readable: names in wrapped rows.
-    for (let i = 0; i < gaps.length; i += 6) {
-      say('    ' + gaps.slice(i, i + 6).map((p) => p.name.padEnd(13)).join(''));
+    // Keep the output readable: names in wrapped rows, capped per generation.
+    const shown = gaps.slice(0, MISSING_NAMES_PER_GEN);
+    for (let i = 0; i < shown.length; i += 6) {
+      say('    ' + shown.slice(i, i + 6).map((p) => p.name.padEnd(13)).join(''));
+    }
+    if (gaps.length > shown.length) {
+      say(`    ... and ${gaps.length - shown.length} more`);
     }
   }
 }
@@ -224,10 +235,11 @@ function pokemonDetail(data, pokemon) {
   // Show the shiny art to anyone who has earned it: it is the whole point of
   // the reward, and a normal recolour would bury it.
   if (config.sprites !== false) {
-    // A caught species is shown in colour at fine resolution, the same reward the
-    // catch banner gives; a not-yet-caught placeholder falls back to the escape-free
-    // plain art (unless an explicit "color" mode opts into colour throughout).
-    const colour = count > 0 || config.spriteMode === 'color';
+    // Both caught and uncaught species render in colour at fine resolution by
+    // default -- the report reaches the UI only through the systemMessage relay
+    // (show.js), which paints escapes intact, so colour is the sharp default and
+    // an explicit "plain" mode is the escape-free opt-out.
+    const colour = count > 0 || config.spriteMode !== 'plain';
     // The report is re-emitted as a systemMessage, which truncates past ~10KB.
     // Colour art is dense, so renderSpriteFit draws each species as wide as its
     // own byte size allows under that cap rather than shrinking all of them to

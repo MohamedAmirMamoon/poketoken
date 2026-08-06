@@ -349,9 +349,13 @@ test('it picks the widest ladder rung that still fits, not just the floor', () =
   const maxWidth = Math.max(...widths);
   assert.ok(maxWidth > SAFE_SYSTEMMESSAGE_WIDTH,
     `no sprite rendered wider than the floor ${SAFE_SYSTEMMESSAGE_WIDTH}: widest was ${maxWidth}`);
-  // And the widest rung on the ladder is actually reached by at least one species.
-  assert.ok(maxWidth >= FIT_WIDTH_LADDER[0] - 2,
-    `nothing approached the top rung ${FIT_WIDTH_LADDER[0]}: widest was ${maxWidth}`);
+  // The extended ladder must actually buy width past the old flat 48 cap for at
+  // least one species. (It can't reach the very top rung by visible width: the
+  // baked sprites are content-cropped, so the widest silhouette in the dex is
+  // ~58, never a full 64 -- the upper rungs give sparse sprites room, not a
+  // guarantee that any one draws that wide.)
+  assert.ok(maxWidth > 48,
+    `the extended ladder bought no width past the old 48 cap: widest was ${maxWidth}`);
 });
 
 test('the chosen render equals renderSprite at the chosen width', () => {
@@ -498,7 +502,7 @@ console.log('\nconfig integration');
 
 test('config exposes sprite defaults', () => {
   assert.strictEqual(DEFAULTS.sprites, true);
-  assert.strictEqual(DEFAULTS.spriteWidth, 48);
+  assert.strictEqual(DEFAULTS.spriteWidth, 64);
   const cfg = loadConfig();
   assert.strictEqual(typeof cfg.sprites, 'boolean');
   assert.ok(Number.isInteger(cfg.spriteWidth) && cfg.spriteWidth >= 8 && cfg.spriteWidth <= 64);
