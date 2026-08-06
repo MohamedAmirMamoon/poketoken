@@ -15,7 +15,7 @@ const PLUGIN_ROOT = path.join(__dirname, '..');
 const spriteLib = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
 const {
   renderSprite, renderSpriteFit, spritePath, shinyPath, applyShiny, ALPHABET,
-  SAFE_SYSTEMMESSAGE_WIDTH, SAFE_SYSTEMMESSAGE_BYTES, FIT_WIDTH_LADDER,
+  SAFE_SYSTEMMESSAGE_WIDTH, SAFE_SYSTEMMESSAGE_CHARS, FIT_WIDTH_LADDER,
 } = spriteLib;
 const { loadConfig, DEFAULTS } = require(path.join(PLUGIN_ROOT, 'lib', 'config.js'));
 const { renderCatch } = require(path.join(PLUGIN_ROOT, 'lib', 'render.js'));
@@ -322,16 +322,36 @@ test('malformed options fall back to defaults instead of throwing', () => {
 
 console.log('\nrenderSpriteFit adaptive width');
 
-test('every species fits under the byte budget, and never truncates', () => {
+test('every species fits under the character budget, and never truncates', () => {
   // The whole point: no rendered banner-bound sprite may exceed the budget, for
-  // any species, in either colour. This is the guarantee that replaces the old
-  // flat width-28 cap.
+  // any species, in either colour. The budget is in characters because that is
+  // what the systemMessage cap counts. This replaces the old flat width-28 cap.
   for (const id of IDS) {
     for (const shiny of [false, true]) {
       const art = renderSpriteFit(id, { shiny });
       assert.ok(art !== null, `#${id} shiny=${shiny} returned null`);
-      assert.ok(Buffer.byteLength(art) <= SAFE_SYSTEMMESSAGE_BYTES,
-        `#${id} shiny=${shiny} is ${Buffer.byteLength(art)}B, over ${SAFE_SYSTEMMESSAGE_BYTES}`);
+      const chars = [...art].length;
+      assert.ok(chars <= SAFE_SYSTEMMESSAGE_CHARS,
+        `#${id} shiny=${shiny} is ${chars} chars, over ${SAFE_SYSTEMMESSAGE_CHARS}`);
+    }
+  }
+});
+
+test('every catch banner clears the 10,000-character systemMessage cap', () => {
+  // The budget protects the ART, but the user-facing guarantee is that the whole
+  // banner -- art plus rarity card plus shiny row -- stays under the cap for every
+  // species and both shiny states, so nothing is ever offloaded to a file preview.
+  const { renderCatch } = require(path.join(__dirname, '..', 'lib', 'render.js'));
+  for (const id of IDS) {
+    for (const shiny of [false, true]) {
+      const banner = renderCatch({
+        pokemon: { id, name: `Mon${id}`, gen: 1 },
+        tier: 'legendary', tokens: 5000, chance: 0.01, roll: 0.005,
+        uniqueCount: 1, totalCount: 1, dexSize: 1025, isNew: true, shiny,
+        config: { sprites: true, spriteWidth: 64, spriteMode: 'color' },
+      });
+      const chars = [...banner].length;
+      assert.ok(chars < 10000, `#${id} shiny=${shiny} banner is ${chars} chars, over the 10k cap`);
     }
   }
 });
@@ -398,17 +418,17 @@ test('nonexistent ids return null rather than the floor', () => {
   }
 });
 
-test('a tiny byte budget falls back to the narrowest render, never null', () => {
+test('a tiny character budget falls back to the narrowest render, never null', () => {
   // Even a budget nothing can meet must return a whole (narrowest) sprite rather
   // than dropping the art entirely -- a large picture beats no picture.
-  const art = renderSpriteFit(1, { maxBytes: 1 });
+  const art = renderSpriteFit(1, { maxChars: 1 });
   assert.ok(typeof art === 'string' && art.length > 0, 'a zero-ish budget dropped the art');
   const floor = renderSprite(1, { maxWidth: SAFE_SYSTEMMESSAGE_WIDTH });
   assert.strictEqual(art, floor, 'the last-resort render was not the ladder floor');
 });
 
 test('malformed options fall back to defaults instead of throwing', () => {
-  for (const bad of [null, {}, { maxWidth: 'wide' }, { maxWidth: NaN }, { maxBytes: 'big' }, { maxBytes: -5 }]) {
+  for (const bad of [null, {}, { maxWidth: 'wide' }, { maxWidth: NaN }, { maxChars: 'big' }, { maxChars: -5 }]) {
     const art = renderSpriteFit(25, bad);
     assert.ok(typeof art === 'string' && art.length > 0, `options ${JSON.stringify(bad)}`);
   }
