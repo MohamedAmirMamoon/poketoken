@@ -10,6 +10,14 @@ const UPPER_HALF = '▀'; // top pixel painted as foreground
 const LOWER_HALF = '▄'; // bottom pixel painted as foreground
 const RESET = '\x1b[0m';
 
+/**
+ * The flat colour every opaque pixel takes when a sprite is drawn as a
+ * silhouette -- the "not yet registered" shadow the Pokedex shows for a species
+ * you have not caught. A dark neutral grey that reads as a shadow on a dark
+ * terminal while staying clearly a shape rather than a hole.
+ */
+const SILHOUETTE_RGB = [80, 80, 80];
+
 const DEFAULT_MAX_WIDTH = 48;
 const DEFAULT_INDENT = '   ';
 
@@ -222,6 +230,22 @@ function decodePalette(pal) {
 }
 
 /**
+ * A palette table the same shape as decodePalette's, but with every real slot set
+ * to the flat silhouette shadow. Index 0 stays the reserved transparent slot, so
+ * transparency still reads as a hole and only the opaque pixels take the shadow.
+ */
+function silhouettePalette(length) {
+  const rgb = new Uint8Array((length + 1) * 3);
+  for (let i = 0; i < length; i++) {
+    const d = (i + 1) * 3;
+    rgb[d] = SILHOUETTE_RGB[0];
+    rgb[d + 1] = SILHOUETTE_RGB[1];
+    rgb[d + 2] = SILHOUETTE_RGB[2];
+  }
+  return rgb;
+}
+
+/**
  * Perceived luminance per palette slot, on the same 0-255 scale as the channels.
  *
  * Rec. 709 coefficients, so the ramp follows what the eye actually reads as
@@ -290,8 +314,15 @@ function renderSize(srcW, srcH, requested, allowUpscale) {
  * than two -- one SGR introducer instead of two, which is what a character cap
  * counts. Together these shrink the payload several-fold.
  *
+ * When `silhouette` is set, every opaque pixel is painted the same flat shadow
+ * colour instead of its palette entry -- the "not yet registered" outline the
+ * Pokedex shows for an uncaught species. Transparency is untouched, so the shape
+ * still reads; and because the whole sprite collapses to one colour, the folded
+ * escapes barely change between cells, making a silhouette far smaller than the
+ * full-colour render.
+ *
  * @param {number} id dex id
- * @param {{maxWidth?:number, indent?:string, shiny?:boolean}} [options]
+ * @param {{maxWidth?:number, indent?:string, shiny?:boolean, silhouette?:boolean}} [options]
  * @returns {string|null} multi-line art, or null when unavailable/malformed
  */
 function renderSprite(id, options) {
@@ -310,18 +341,26 @@ function renderSprite(id, options) {
     const outW = size.w;
     const outH = size.h;
 
-    const pal = decodePalette(sprite.pal);
+    const pal = opts.silhouette ? silhouettePalette(sprite.pal.length) : decodePalette(sprite.pal);
     const maxIndex = sprite.pal.length;
     const px = sprite.px;
     const srcW = sprite.w;
     const srcH = sprite.h;
 
-    // Row of palette indices for one output line, reused across the two halves.
+    const silhouette = !!opts.silhouette;
+
+    // Palette index for one output pixel, 0 for transparent. In silhouette mode
+    // every opaque pixel is collapsed to the single index 1: the palette already
+    // paints every slot the same shadow, and pinning them to one index means
+    // adjacent opaque cells report no colour change, so the escape fold emits the
+    // shadow SGR once per run instead of re-sending it every glyph -- a silhouette
+    // that is a fraction of the full-colour render's size.
     const indexAt = (ox, oy) => {
       const sx = Math.min(srcW - 1, Math.floor((ox * srcW) / outW));
       const sy = Math.min(srcH - 1, Math.floor((oy * srcH) / outH));
       const index = SYMBOL_INDEX.get(px[sy * srcW + sx]);
-      return index === undefined || index > maxIndex ? 0 : index;
+      if (index === undefined || index === 0 || index > maxIndex) return 0;
+      return silhouette ? 1 : index;
     };
 
     const lines = [];
@@ -410,7 +449,7 @@ function renderSprite(id, options) {
  * sprite is simply drawn at that width. Rungs above the ceiling are skipped.
  *
  * @param {number} id dex id
- * @param {{maxWidth?:number, indent?:string, shiny?:boolean, maxChars?:number}} [options]
+ * @param {{maxWidth?:number, indent?:string, shiny?:boolean, silhouette?:boolean, maxChars?:number}} [options]
  * @returns {string|null} the widest safe art, or null when unavailable
  */
 function renderSpriteFit(id, options) {
@@ -431,7 +470,9 @@ function renderSpriteFit(id, options) {
 
   let narrowestArt = null;
   for (const width of candidates) {
-    const art = renderSprite(id, { maxWidth: width, indent: opts.indent, shiny: opts.shiny });
+    const art = renderSprite(id, {
+      maxWidth: width, indent: opts.indent, shiny: opts.shiny, silhouette: opts.silhouette,
+    });
     // A null here is not "too big", it is "no sprite" -- neither widening nor
     // narrowing helps, so report it as unavailable exactly as renderSprite does.
     if (art === null) return null;
@@ -611,4 +652,5 @@ module.exports = {
   SAFE_SYSTEMMESSAGE_WIDTH,
   SAFE_SYSTEMMESSAGE_CHARS,
   FIT_WIDTH_LADDER,
+  SILHOUETTE_RGB,
 };

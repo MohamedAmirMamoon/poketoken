@@ -250,8 +250,13 @@ function pokemonDetail(data, pokemon) {
     // to the densest one's width; the configured spriteWidth caps it from above
     // for a narrow terminal. Plain art is escape-free and tiny, so it keeps the
     // configured width directly.
+    //
+    // A species you have not caught is drawn as a flat dark-grey silhouette -- the
+    // Pokedex's "not yet registered" shadow -- so the full colours stay a reward
+    // for actually catching it. Plain mode has no colour to withhold, so it shows
+    // the shaded shape either way.
     const art = colour
-      ? renderSpriteFit(pokemon.id, { maxWidth: config.spriteWidth, shiny: shinies > 0 })
+      ? renderSpriteFit(pokemon.id, { maxWidth: config.spriteWidth, shiny: shinies > 0, silhouette: count === 0 })
       : renderSpritePlain(pokemon.id, { maxWidth: config.spriteWidth, shiny: shinies > 0 });
     if (art) {
       say(art);

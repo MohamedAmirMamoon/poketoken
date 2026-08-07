@@ -15,7 +15,7 @@ const PLUGIN_ROOT = path.join(__dirname, '..');
 const spriteLib = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
 const {
   renderSprite, renderSpriteFit, spritePath, shinyPath, applyShiny, ALPHABET,
-  SAFE_SYSTEMMESSAGE_WIDTH, SAFE_SYSTEMMESSAGE_CHARS, FIT_WIDTH_LADDER,
+  SAFE_SYSTEMMESSAGE_WIDTH, SAFE_SYSTEMMESSAGE_CHARS, FIT_WIDTH_LADDER, SILHOUETTE_RGB,
 } = spriteLib;
 const { loadConfig, DEFAULTS } = require(path.join(PLUGIN_ROOT, 'lib', 'config.js'));
 const { renderCatch } = require(path.join(PLUGIN_ROOT, 'lib', 'render.js'));
@@ -317,6 +317,60 @@ test('malformed options fall back to defaults instead of throwing', () => {
   for (const bad of [null, {}, { maxWidth: 'wide' }, { maxWidth: NaN }, { maxWidth: 0 }, { indent: 7 }]) {
     const art = renderSprite(25, bad);
     assert.ok(typeof art === 'string' && art.length > 0, `options ${JSON.stringify(bad)}`);
+  }
+});
+
+console.log('\nsilhouette mode');
+
+/** Every truecolour group `38;2;r;g;b` / `48;2;r;g;b` a rendered sprite paints. */
+function colourGroups(art) {
+  const groups = new Set();
+  for (const m of art.matchAll(/[34]8;2;(\d+;\d+;\d+)/g)) groups.add(m[1]);
+  return groups;
+}
+
+test('a silhouette paints every opaque pixel the one shadow colour', () => {
+  const shadow = SILHOUETTE_RGB.join(';');
+  for (const id of SAMPLE) {
+    const art = renderSprite(id, { maxWidth: 48, silhouette: true });
+    const groups = colourGroups(art);
+    assert.ok(groups.size > 0, `#${id}: silhouette drew no colour at all`);
+    for (const g of groups) {
+      assert.strictEqual(g, shadow, `#${id}: silhouette painted a non-shadow colour ${g}`);
+    }
+  }
+});
+
+test('a silhouette keeps the same shape as the full-colour render', () => {
+  // Same glyphs in the same places -- only the colour is withheld. Strip the SGR
+  // escapes from both and they must be identical.
+  const strip = (s) => s.replace(/\x1b\[[0-9;]*m/g, '');
+  for (const id of SAMPLE) {
+    const full = renderSprite(id, { maxWidth: 48 });
+    const sil = renderSprite(id, { maxWidth: 48, silhouette: true });
+    assert.strictEqual(strip(sil), strip(full), `#${id}: silhouette changed the shape`);
+  }
+});
+
+test('a silhouette is never larger than the full-colour render', () => {
+  // Collapsing every pixel to one index lets the escape fold emit the shadow SGR
+  // once per run instead of per glyph, so a silhouette must not cost more than the
+  // multi-colour art it stands in for.
+  for (const id of SAMPLE) {
+    const full = [...renderSprite(id, { maxWidth: 48 })].length;
+    const sil = [...renderSprite(id, { maxWidth: 48, silhouette: true })].length;
+    assert.ok(sil <= full, `#${id}: silhouette ${sil} chars > full-colour ${full}`);
+  }
+});
+
+test('renderSpriteFit threads the silhouette flag and stays under the cap', () => {
+  const shadow = SILHOUETTE_RGB.join(';');
+  for (const id of dex.pokemon.map((p) => p.id)) {
+    const art = renderSpriteFit(id, { silhouette: true });
+    assert.ok([...art].length <= SAFE_SYSTEMMESSAGE_CHARS, `#${id}: silhouette over the char budget`);
+    for (const g of colourGroups(art)) {
+      assert.strictEqual(g, shadow, `#${id}: fit silhouette painted a non-shadow colour ${g}`);
+    }
   }
 });
 

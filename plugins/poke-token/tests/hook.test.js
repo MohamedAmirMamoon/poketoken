@@ -873,6 +873,33 @@ test('owning a shiny makes the detail card render the shiny art', () => {
   assert.ok(!shiny.includes(renderSpriteFit(25, opts)), 'shiny card rendered the normal art');
 });
 
+test('an uncaught species detail draws a shadow silhouette, a caught one full colour', () => {
+  const { renderSpriteFit, SILHOUETTE_RGB } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
+  const { DEFAULTS } = require(path.join(PLUGIN_ROOT, 'lib', 'config.js'));
+  const opts = { maxWidth: DEFAULTS.spriteWidth };
+  const shadow = SILHOUETTE_RGB.join(';');
+  const colourGroups = (s) => new Set(Array.from(s.matchAll(/[34]8;2;(\d+;\d+;\d+)/g), (m) => m[1]));
+
+  // An empty collection: Mewtwo has not been caught, so its detail is a silhouette.
+  const emptyDir = seed('sil-uncaught', []);
+  writeConfig(emptyDir, { spriteMode: 'color' });
+  const uncaught = run(STATS, ['mewtwo'], { dir: emptyDir }).stdout;
+  const uncaughtArt = uncaught.slice(0, uncaught.indexOf('#0150 MEWTWO'));
+  const groups = colourGroups(uncaughtArt);
+  assert.ok(groups.size > 0, 'the uncaught detail drew no art at all');
+  for (const g of groups) assert.strictEqual(g, shadow, `uncaught art painted a non-shadow colour ${g}`);
+  assert.ok(uncaught.includes(renderSpriteFit(150, Object.assign({ silhouette: true }, opts))),
+    'the uncaught detail is not the silhouette render');
+
+  // Catch it, and the same detail comes back in full colour.
+  const caughtDir = seed('sil-caught', [{ id: 150, name: 'Mewtwo', gen: 1, tier: 'legendary' }]);
+  writeConfig(caughtDir, { spriteMode: 'color' });
+  const caught = run(STATS, ['mewtwo'], { dir: caughtDir }).stdout;
+  assert.ok(colourGroups(caught.slice(0, caught.indexOf('#0150 MEWTWO'))).size > 1,
+    'the caught detail is still a single-colour silhouette');
+  assert.ok(caught.includes(renderSpriteFit(150, opts)), 'the caught detail is not the full-colour render');
+});
+
 test('a hand-written non-boolean shiny value is ignored, not half-trusted', () => {
   // The collection is documented as user-editable, so `"shiny": "yes"` is reachable.
   const dir = seed('shiny-junk', [
