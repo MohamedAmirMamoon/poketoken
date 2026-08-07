@@ -15,7 +15,7 @@ const PLUGIN_ROOT = path.join(__dirname, '..');
 const spriteLib = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
 const {
   renderSprite, renderSpriteFit, spritePath, shinyPath, applyShiny, ALPHABET,
-  SAFE_SYSTEMMESSAGE_WIDTH, SAFE_SYSTEMMESSAGE_BYTES, FIT_WIDTH_LADDER,
+  SAFE_SYSTEMMESSAGE_WIDTH, SAFE_SYSTEMMESSAGE_CHARS, FIT_WIDTH_LADDER,
 } = spriteLib;
 const { loadConfig, DEFAULTS } = require(path.join(PLUGIN_ROOT, 'lib', 'config.js'));
 const { renderCatch } = require(path.join(PLUGIN_ROOT, 'lib', 'render.js'));
@@ -322,18 +322,46 @@ test('malformed options fall back to defaults instead of throwing', () => {
 
 console.log('\nrenderSpriteFit adaptive width');
 
-test('every species fits under the byte budget, and never truncates', () => {
+test('every species fits under the character budget, and never truncates', () => {
   // The whole point: no rendered banner-bound sprite may exceed the budget, for
-  // any species, in either colour. This is the guarantee that replaces the old
-  // flat width-28 cap.
+  // any species, in either colour. The budget is in characters because that is
+  // what the systemMessage cap counts. This replaces the old flat width-28 cap.
   for (const id of IDS) {
     for (const shiny of [false, true]) {
       const art = renderSpriteFit(id, { shiny });
       assert.ok(art !== null, `#${id} shiny=${shiny} returned null`);
-      assert.ok(Buffer.byteLength(art) <= SAFE_SYSTEMMESSAGE_BYTES,
-        `#${id} shiny=${shiny} is ${Buffer.byteLength(art)}B, over ${SAFE_SYSTEMMESSAGE_BYTES}`);
+      const chars = [...art].length;
+      assert.ok(chars <= SAFE_SYSTEMMESSAGE_CHARS,
+        `#${id} shiny=${shiny} is ${chars} chars, over ${SAFE_SYSTEMMESSAGE_CHARS}`);
     }
   }
+});
+
+test('no catch banner or detail view ever exceeds the 10,000-character cap', () => {
+  // The user-facing guarantee that kills the "<persisted-output>" failure: the
+  // WHOLE systemMessage -- art plus every scrap of chrome -- must stay under
+  // Claude Code's 10,000-character hook-output cap for every species and both
+  // shiny states, so nothing is ever offloaded to a file preview. The banner is
+  // the tightest consumer (rarity card + shiny row share the message with the
+  // art), so it is the one that proves the cap holds.
+  const { renderCatch } = require(path.join(PLUGIN_ROOT, 'lib', 'render.js'));
+  const dex = require(path.join(PLUGIN_ROOT, 'data', 'dex.json'));
+  let worst = 0;
+  for (const p of dex.pokemon) {
+    for (const shiny of [false, true]) {
+      const banner = renderCatch({
+        pokemon: p, tier: p.tier, tokens: 500000, chance: 0.5, roll: 0.001,
+        uniqueCount: 500, totalCount: 900, dexSize: 1025, isNew: true, shiny,
+        config: { sprites: true, spriteWidth: 64, spriteMode: 'color' },
+      });
+      const chars = [...banner].length;
+      if (chars > worst) worst = chars;
+      assert.ok(chars < 10000, `#${p.id} ${p.name} shiny=${shiny} banner is ${chars} chars, over the 10k cap`);
+    }
+  }
+  // A tripwire on the margin: if a future change pushes the worst banner close to
+  // the cap, this fails loudly here rather than as a silent persisted-output.
+  assert.ok(worst < 9950, `worst banner ${worst} chars leaves under 50 chars of headroom`);
 });
 
 test('it picks the widest ladder rung that still fits, not just the floor', () => {
@@ -349,9 +377,13 @@ test('it picks the widest ladder rung that still fits, not just the floor', () =
   const maxWidth = Math.max(...widths);
   assert.ok(maxWidth > SAFE_SYSTEMMESSAGE_WIDTH,
     `no sprite rendered wider than the floor ${SAFE_SYSTEMMESSAGE_WIDTH}: widest was ${maxWidth}`);
-  // And the widest rung on the ladder is actually reached by at least one species.
-  assert.ok(maxWidth >= FIT_WIDTH_LADDER[0] - 2,
-    `nothing approached the top rung ${FIT_WIDTH_LADDER[0]}: widest was ${maxWidth}`);
+  // The extended ladder must actually buy width past the old flat 48 cap for at
+  // least one species. (It cannot reach the very top rung 64 by visible width:
+  // the baked sprites are content-cropped, so the widest silhouette in the dex is
+  // ~60, never a full 64 -- the upper rungs give sparse sprites room, not a
+  // guarantee that any one draws that wide.)
+  assert.ok(maxWidth > 48,
+    `the extended ladder bought no width past the old 48 cap: widest was ${maxWidth}`);
 });
 
 test('the chosen render equals renderSprite at the chosen width', () => {
@@ -394,17 +426,17 @@ test('nonexistent ids return null rather than the floor', () => {
   }
 });
 
-test('a tiny byte budget falls back to the narrowest render, never null', () => {
+test('a tiny character budget falls back to the narrowest render, never null', () => {
   // Even a budget nothing can meet must return a whole (narrowest) sprite rather
   // than dropping the art entirely -- a large picture beats no picture.
-  const art = renderSpriteFit(1, { maxBytes: 1 });
+  const art = renderSpriteFit(1, { maxChars: 1 });
   assert.ok(typeof art === 'string' && art.length > 0, 'a zero-ish budget dropped the art');
   const floor = renderSprite(1, { maxWidth: SAFE_SYSTEMMESSAGE_WIDTH });
   assert.strictEqual(art, floor, 'the last-resort render was not the ladder floor');
 });
 
 test('malformed options fall back to defaults instead of throwing', () => {
-  for (const bad of [null, {}, { maxWidth: 'wide' }, { maxWidth: NaN }, { maxBytes: 'big' }, { maxBytes: -5 }]) {
+  for (const bad of [null, {}, { maxWidth: 'wide' }, { maxWidth: NaN }, { maxChars: 'big' }, { maxChars: -5 }]) {
     const art = renderSpriteFit(25, bad);
     assert.ok(typeof art === 'string' && art.length > 0, `options ${JSON.stringify(bad)}`);
   }
@@ -498,7 +530,7 @@ console.log('\nconfig integration');
 
 test('config exposes sprite defaults', () => {
   assert.strictEqual(DEFAULTS.sprites, true);
-  assert.strictEqual(DEFAULTS.spriteWidth, 48);
+  assert.strictEqual(DEFAULTS.spriteWidth, 64);
   const cfg = loadConfig();
   assert.strictEqual(typeof cfg.sprites, 'boolean');
   assert.ok(Number.isInteger(cfg.spriteWidth) && cfg.spriteWidth >= 8 && cfg.spriteWidth <= 64);

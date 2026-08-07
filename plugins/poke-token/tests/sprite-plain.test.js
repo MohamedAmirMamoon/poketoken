@@ -612,8 +612,8 @@ test('the last palette slot is drawn without indexing off the luminance table', 
 
 console.log('\nconfig integration');
 
-test('spriteMode defaults to plain, the only mode that survives capture', () => {
-  assert.strictEqual(DEFAULTS.spriteMode, 'plain');
+test('spriteMode defaults to color, the finest mode the relay paints intact', () => {
+  assert.strictEqual(DEFAULTS.spriteMode, 'color');
   assert.deepStrictEqual(SPRITE_MODES, ['color', 'plain']);
 });
 
@@ -641,15 +641,15 @@ test('loadConfig accepts either mode and normalises case and padding', () => {
   assert.strictEqual(withConfig(JSON.stringify({ spriteMode: 'PLAIN' }), () => loadConfig()).spriteMode, 'plain');
 });
 
-test('an unrecognised spriteMode falls back to plain rather than disabling art', () => {
+test('an unrecognised spriteMode falls back to color rather than disabling art', () => {
   for (const bad of ['plane', '', 'true', 42, null, [], {}]) {
     const cfg = withConfig(JSON.stringify({ spriteMode: bad }), () => loadConfig());
-    assert.strictEqual(cfg.spriteMode, 'plain', `value ${JSON.stringify(bad)}`);
+    assert.strictEqual(cfg.spriteMode, 'color', `value ${JSON.stringify(bad)}`);
   }
   // An absent field and an unreadable file both mean "the default".
-  assert.strictEqual(withConfig('{}', () => loadConfig()).spriteMode, 'plain');
-  assert.strictEqual(withConfig('not json', () => loadConfig()).spriteMode, 'plain');
-  assert.strictEqual(withConfig(undefined, () => loadConfig()).spriteMode, 'plain');
+  assert.strictEqual(withConfig('{}', () => loadConfig()).spriteMode, 'color');
+  assert.strictEqual(withConfig('not json', () => loadConfig()).spriteMode, 'color');
+  assert.strictEqual(withConfig(undefined, () => loadConfig()).spriteMode, 'color');
 });
 
 test('the catch banner always renders in colour, whatever the sprite mode', () => {
@@ -722,11 +722,12 @@ test('/pokedex in plain mode emits a sprite with no ESC byte at all', () => {
   assert.ok(/PIKACHU/.test(out), 'the text report is missing');
 });
 
-test('/pokedex with no configured mode is escape-free, since plain is the default', () => {
-  // This is the path that matters most: the command's stdout is captured as a
-  // string, so the out-of-the-box report must not depend on escapes surviving.
+test('/pokedex with no configured mode draws colour, since color is the default', () => {
+  // The out-of-the-box report is relayed through show.js as a systemMessage,
+  // which paints truecolour escapes intact, so the default draws the finest,
+  // colour art rather than the escape-free fallback.
   const out = pokedex(undefined, 'pikachu');
-  assert.strictEqual(out.indexOf('\x1b'), -1, 'the default /pokedex leaked an escape');
+  assert.ok(/\x1b\[38;2;\d+;\d+;\d+m/.test(out), 'the default /pokedex lost its colour art');
   const drawn = out.split('').filter((c) => DRAWN_SET.has(c)).length;
   assert.ok(drawn > 100, `only ${drawn} art glyphs in the report -- art is missing`);
 });

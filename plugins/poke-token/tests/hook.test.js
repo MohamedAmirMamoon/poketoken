@@ -551,8 +551,8 @@ test('a shiny catch renders the recoloured art, not the normal art', () => {
   const id = readCollection(dir).catches[0].id;
 
   const { renderSpriteFit } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
-  // The banner draws each species as wide as its byte size allows under the cap,
-  // with the config spriteWidth (32) as the ceiling -- so the expected art is the
+  // The banner draws each species as wide as its character count allows under the
+  // cap, with the config spriteWidth (32) as the ceiling -- so the expected art is the
   // fit render at that same ceiling, not a fixed width.
   const normalArt = renderSpriteFit(id, { maxWidth: 32 });
   const shinyArt = renderSpriteFit(id, { maxWidth: 32, shiny: true });
@@ -708,8 +708,8 @@ test('missing caps names per generation and stays under the systemMessage cap', 
   const dir = freshDir('stats-missing');
   const r = run(STATS, ['missing'], { dir });
   assert.strictEqual(r.status, 0, `exit ${r.status}`);
-  assert.ok(Buffer.byteLength(r.stdout) < 10000,
-    `missing view is ${Buffer.byteLength(r.stdout)}B, over the ~10KB cap`);
+  assert.ok([...r.stdout].length < 10000,
+    `missing view is ${[...r.stdout].length} chars, over the 10,000-char cap`);
   assert.ok(/Gen 1 - 151 missing/.test(r.stdout), 'lost the true per-gen total');
   assert.ok(/\.\.\. and \d+ more/.test(r.stdout), 'no "+N more" tail for a capped generation');
 });
@@ -863,8 +863,8 @@ test('owning a shiny makes the detail card render the shiny art', () => {
 
   const { renderSpriteFit } = require(path.join(PLUGIN_ROOT, 'lib', 'sprite.js'));
   const { DEFAULTS } = require(path.join(PLUGIN_ROOT, 'lib', 'config.js'));
-  // The detail view draws each species as wide as its byte size allows under the
-  // systemMessage cap, with the configured spriteWidth as the ceiling -- so the
+  // The detail view draws each species as wide as its character count allows under
+  // the systemMessage cap, with the configured spriteWidth as the ceiling -- so the
   // expected art is the fit render at that ceiling.
   const opts = { maxWidth: DEFAULTS.spriteWidth };
   assert.ok(normal.includes(renderSpriteFit(25, opts)), 'normal card lost the normal art');

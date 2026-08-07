@@ -36,36 +36,41 @@ const SAFE_SYSTEMMESSAGE_WIDTH = 28;
  * A flat cap of SAFE_SYSTEMMESSAGE_WIDTH is set by the ~36 densest species, and
  * shrinking every one of the 1025 to fit that worst case throws away resolution
  * on the other 989 -- most of which are far sparser and render well under the
- * truncation cap even at 48. So rather than one width for all, each sprite is
- * drawn as wide as its OWN byte size allows: the ladder is walked from 48 down,
- * and the first render whose art fits SAFE_SYSTEMMESSAGE_BYTES is kept. 28 stays
- * the floor -- it is the proven-safe width, so the walk always terminates on a
- * result rather than falling through to nothing.
+ * truncation cap even at 64. So rather than one width for all, each sprite is
+ * drawn as wide as its OWN character count allows: the ladder is walked from 64
+ * down, and the first render whose art fits SAFE_SYSTEMMESSAGE_CHARS is kept. 28
+ * stays the floor -- it is the proven-safe width, so the walk always terminates
+ * on a result rather than falling through to nothing.
  *
- * Steps of 4 keep the walk cheap (at most six renders, ~2ms) while still giving
- * the size real granularity; per-sprite byte size rises monotonically with
- * width, so the first fit from the top is also the widest safe one.
+ * The top rung is 64, the native width of the largest baked sprite, so a sparse
+ * species is drawn at full baked fidelity when it fits. Steps of 4 keep the walk
+ * cheap (at most ten renders, ~2ms) while giving the size real granularity;
+ * per-sprite character count rises monotonically with width, so the first fit
+ * from the top is also the widest safe one.
  */
-const FIT_WIDTH_LADDER = [48, 44, 40, 36, 32, 28];
+const FIT_WIDTH_LADDER = [64, 60, 56, 52, 48, 44, 40, 36, 32, 28];
 
 /**
- * Byte budget for the ART ALONE when it must fit through a systemMessage.
+ * Character budget for the ART ALONE when it must fit through a systemMessage.
  *
- * The banner is the tightest consumer: its rarity card and shiny row add a fixed
- * ~1500 bytes of chrome (measured worst case 1494B), and the whole message has
- * to clear Claude Code's ~10KB truncation cap. Holding the art to 7700 bytes
- * lands the worst banner at ~9.2KB -- roughly 800 bytes of headroom below the
- * cap, matching the margin the old flat width-28 cap held while letting most
- * species render far wider. The detail view's chrome is lighter, so it clears by
- * even more.
+ * Claude Code's hook-output cap is 10,000 *characters*, not bytes (verified in
+ * the hooks docs: a systemMessage past 10,000 characters is offloaded to a
+ * "<persisted-output>" file preview, and the sprite never paints). Characters is
+ * also the right unit for this art: a half-block glyph (`▀`) is three UTF-8 bytes
+ * but one character, so budgeting in bytes shrank every sprite ~8% more than the
+ * real cap required.
  *
- * The value sits just above the densest species' floor render (the width-28
- * Groudon shiny at 7685B), so the ladder floor always satisfies the budget and
- * `renderSpriteFit` never has to fall back to a truncating render. Raising this
- * trades headroom for width; do not exceed ~8300 without re-measuring, or the
- * densest shiny banners begin to truncate.
+ * The banner is the tightest consumer: its rarity card and shiny row add up to
+ * ~1150 characters of chrome (measured worst case 1156), and the whole message
+ * has to clear the 10,000-char cap. Holding the art to 8600 characters lands the
+ * worst banner comfortably under 10,000 -- verified at zero banners and zero
+ * detail views over the cap across the whole dex, in both shiny states. The
+ * detail view's chrome is lighter, so it clears by more.
+ *
+ * Raising this trades margin for width; re-measure the worst-case full banner
+ * across every species and both shiny states before exceeding it.
  */
-const SAFE_SYSTEMMESSAGE_BYTES = 7700;
+const SAFE_SYSTEMMESSAGE_CHARS = 8600;
 
 /**
  * Shading glyphs from darkest to lightest, for the escape-free renderer.
@@ -280,7 +285,10 @@ function renderSize(srcW, srcH, requested, allowUpscale) {
  * Each character cell stacks two vertically-adjacent pixels: the foreground
  * colour paints one half and the background paints the other, so a 48x48 sprite
  * comes out as 48 columns by 24 rows. Escapes are emitted only when a colour
- * actually changes, which shrinks the payload several-fold.
+ * actually changes, and when both the foreground and background change in the
+ * same cell they are folded into ONE `\x1b[38;2;...;48;2;...m` sequence rather
+ * than two -- one SGR introducer instead of two, which is what a character cap
+ * counts. Together these shrink the payload several-fold.
  *
  * @param {number} id dex id
  * @param {{maxWidth?:number, indent?:string, shiny?:boolean}} [options]
@@ -343,23 +351,30 @@ function renderSprite(id, options) {
         const fgIndex = top !== 0 ? top : bottom;
         const bgIndex = solid ? bottom : 0;
 
+        // A clear background is spelled by RESET, which also drops the foreground,
+        // so the fg is always re-sent after one. Otherwise the colour changes for
+        // this cell are gathered into a single SGR: `params` holds the 38;2 and/or
+        // 48;2 groups that actually changed, joined by `;` and wrapped in one
+        // `\x1b[...m`. Folding the pair spends one escape introducer where two
+        // separate escapes would spend two -- the count a character cap measures.
         let cell = '';
-        if (bgIndex === 0) {
-          if (bg !== 0) {
-            cell += RESET;
-            bg = 0;
-            fg = -1; // the reset also cleared the foreground
-          }
-        } else if (bgIndex !== bg) {
-          const d = bgIndex * 3;
-          cell += `\x1b[48;2;${pal[d]};${pal[d + 1]};${pal[d + 2]}m`;
-          bg = bgIndex;
+        if (bgIndex === 0 && bg !== 0) {
+          cell += RESET;
+          bg = 0;
+          fg = -1; // the reset also cleared the foreground
         }
+        const params = [];
         if (fgIndex !== fg) {
           const d = fgIndex * 3;
-          cell += `\x1b[38;2;${pal[d]};${pal[d + 1]};${pal[d + 2]}m`;
+          params.push(`38;2;${pal[d]};${pal[d + 1]};${pal[d + 2]}`);
           fg = fgIndex;
         }
+        if (bgIndex !== 0 && bgIndex !== bg) {
+          const d = bgIndex * 3;
+          params.push(`48;2;${pal[d]};${pal[d + 1]};${pal[d + 2]}`);
+          bg = bgIndex;
+        }
+        if (params.length) cell += `\x1b[${params.join(';')}m`;
         line += cell + glyph;
       }
       lines.push(line + RESET);
@@ -381,7 +396,7 @@ function renderSprite(id, options) {
  * quality. A single flat width wastes that budget: it has to be small enough for
  * the very densest species, so every sparser sprite renders smaller than it
  * safely could. This walks FIT_WIDTH_LADDER from the widest down and returns the
- * first render whose art fits `maxBytes`, so each species is drawn at its own
+ * first render whose art fits `maxChars`, so each species is drawn at its own
  * largest safe size instead of everyone's smallest.
  *
  * The ladder's narrowest rung is SAFE_SYSTEMMESSAGE_WIDTH, which is known to fit
@@ -395,14 +410,14 @@ function renderSprite(id, options) {
  * sprite is simply drawn at that width. Rungs above the ceiling are skipped.
  *
  * @param {number} id dex id
- * @param {{maxWidth?:number, indent?:string, shiny?:boolean, maxBytes?:number}} [options]
+ * @param {{maxWidth?:number, indent?:string, shiny?:boolean, maxChars?:number}} [options]
  * @returns {string|null} the widest safe art, or null when unavailable
  */
 function renderSpriteFit(id, options) {
   const opts = options || {};
-  const budget = typeof opts.maxBytes === 'number' && isFinite(opts.maxBytes) && opts.maxBytes > 0
-    ? opts.maxBytes
-    : SAFE_SYSTEMMESSAGE_BYTES;
+  const budget = typeof opts.maxChars === 'number' && isFinite(opts.maxChars) && opts.maxChars > 0
+    ? opts.maxChars
+    : SAFE_SYSTEMMESSAGE_CHARS;
   const ceiling = typeof opts.maxWidth === 'number' && isFinite(opts.maxWidth)
     ? Math.floor(opts.maxWidth)
     : Infinity;
@@ -420,7 +435,9 @@ function renderSpriteFit(id, options) {
     // A null here is not "too big", it is "no sprite" -- neither widening nor
     // narrowing helps, so report it as unavailable exactly as renderSprite does.
     if (art === null) return null;
-    if (Buffer.byteLength(art) <= budget) return art;
+    // Budget in characters, not bytes: the systemMessage cap counts characters,
+    // and a three-byte half-block glyph is one character.
+    if ([...art].length <= budget) return art;
     // Track the narrowest render as the last resort: if even it overflows the
     // budget, a whole (if large) sprite still beats returning nothing.
     narrowestArt = art;
@@ -592,6 +609,6 @@ module.exports = {
   PLAIN_MAX_WIDTH,
   PLAIN_ASPECT,
   SAFE_SYSTEMMESSAGE_WIDTH,
-  SAFE_SYSTEMMESSAGE_BYTES,
+  SAFE_SYSTEMMESSAGE_CHARS,
   FIT_WIDTH_LADDER,
 };

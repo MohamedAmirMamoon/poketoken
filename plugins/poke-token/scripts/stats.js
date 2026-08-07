@@ -244,11 +244,11 @@ function pokemonDetail(data, pokemon) {
   // Show the shiny art to anyone who has earned it: it is the whole point of
   // the reward, and a normal recolour would bury it.
   if (config.sprites !== false) {
-    // The report is re-emitted as a systemMessage, which truncates past ~10KB.
+    // The report is re-emitted as a systemMessage, capped at 10,000 characters.
     // Colour art is dense, so renderSpriteFit draws each species as wide as its
-    // own byte size allows under that cap rather than shrinking all of them to
-    // the densest one's width; the configured spriteWidth caps it from above for
-    // a narrow terminal. Plain art is escape-free and tiny, so it keeps the
+    // own character count allows under that cap rather than shrinking all of them
+    // to the densest one's width; the configured spriteWidth caps it from above
+    // for a narrow terminal. Plain art is escape-free and tiny, so it keeps the
     // configured width directly.
     const art = colour
       ? renderSpriteFit(pokemon.id, { maxWidth: config.spriteWidth, shiny: shinies > 0 })
